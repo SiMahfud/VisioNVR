@@ -53,8 +53,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-
+import { scanOnvifCameras } from '@/lib/onvif';
 // Add/Edit Dialog Component
 function CameraDialog({ 
   camera, 
@@ -243,61 +242,120 @@ function DeleteCameraAlert({
 function DiscoveryDialog({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [ipRangeInput, setIpRangeInput] = useState('192.168.1.1-192.168.1.254');
+  const [foundCameras, setFoundCameras] = useState<any[]>([]);
   const { toast } = useToast();
 
-  const handleDiscover = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleDiscover = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsDiscovering(true);
-    toast({
-        title: 'Discovering Cameras...',
-        description: 'Scanning the local network for ONVIF-compatible devices.',
-    });
-    setTimeout(() => {
+    setFoundCameras([]);
+
+    if (!ipRangeInput.includes('-') && ipRangeInput.split('.').length !== 4) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid IP Range',
+        description: 'Please enter a valid IP address or range (e.g., 192.168.1.1-192.168.1.254 or 192.168.1.10).'
+      });
       setIsDiscovering(false);
-      setIsOpen(false);
+      return;
+    }
+
+    toast({
+      title: 'Discovery Started',
+      description: 'Scanning the local network for ONVIF-compatible devices. This may take a moment.',
+    });
+
+    try {
+      const response = await fetch('/api/onvif-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ipRange: ipRangeInput }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const cameras = await response.json();
+      setFoundCameras(cameras);
+
       toast({
         title: 'Discovery Complete',
-        description: `No new cameras found.`,
+        description: `${cameras.length} camera(s) found.`,
       });
-    }, 2500);
+    } catch (error) {
+      console.error('Error during ONVIF scan:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Scan Error',
+        description: `An error occurred during the ONVIF scan: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      });
+    } finally {
+      setIsDiscovering(false);
+    }
   };
-    
+
+  // RETURN utama komponen
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>{children}</DialogTrigger>
-        <DialogContent>
-            <form onSubmit={handleDiscover}>
-                <DialogHeader>
-                    <DialogTitle>Discover ONVIF Cameras</DialogTitle>
-                     <DialogDescription>
-                        Scan your local network to find compatible cameras automatically.
-                     </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="ip-range-start" className="text-right">IP Range</Label>
-                        <div className="col-span-3 flex items-center gap-2">
-                             <Input id="ip-range-start" name="ip-range-start" placeholder="192.168.1.1" />
-                             <span>-</span>
-                             <Input id="ip-range-end" name="ip-range-end" placeholder="192.168.1.255" />
-                        </div>
-                    </div>
-                </div>
-                 <DialogFooter>
-                    <Button type="submit" disabled={isDiscovering}>
-                        {isDiscovering ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                            <Wifi className="mr-2 h-4 w-4" />
-                        )}
-                        Start Scan
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleDiscover}>
+          <DialogHeader>
+            <DialogTitle>Discover ONVIF Cameras</DialogTitle>
+            <DialogDescription>
+              Scan your local network to find compatible cameras automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="ip-range" className="text-right">IP Range</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Input
+                  id="ip-range"
+                  name="ip-range"
+                  value={ipRangeInput}
+                  onChange={(e) => setIpRangeInput(e.target.value)}
+                  placeholder="e.g., 192.168.1.1-192.168.1.254"
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+
+            {foundCameras.length > 0 && (
+              <div className="grid gap-2">
+                <h4 className="font-medium leading-none">Found Cameras:</h4>
+                <ul className="max-h-40 overflow-y-auto border rounded p-2">
+                  {foundCameras.map((cam, index) => (
+                    <li key={index} className="text-sm text-muted-foreground">
+                      {cam.information?.Manufacturer || 'Unknown'} {cam.information?.Model || 'Device'} at {cam.ip}:{cam.port}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="submit" disabled={isDiscovering}>
+              {isDiscovering ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Wifi className="mr-2 h-4 w-4" />
+              )}
+              Start Scan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }
+
 
 
 export default function CamerasPage() {
