@@ -19,10 +19,12 @@ import {
   PlaySquare,
   Bot,
   Video,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { useAuth } from './auth-provider';
 
 const menuItems = [
   { href: '/dashboard', label: 'Multi-Camera View', icon: LayoutGrid },
@@ -33,6 +35,7 @@ const menuItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   return (
     <SidebarProvider>
@@ -65,15 +68,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-           <div className="flex items-center gap-3 p-2">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src="https://placehold.co/100x100.png" />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Admin User</span>
-                <span className="text-xs text-muted-foreground">admin@visionary.com</span>
+           <div className="flex items-center justify-between p-2">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src="https://placehold.co/100x100.png" />
+                  <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{user?.name}</span>
+                  <span className="text-xs text-muted-foreground">{user?.username}@visionary.com</span>
+                </div>
               </div>
+              <Button variant="ghost" size="icon" onClick={logout}>
+                <LogOut className="h-5 w-5" />
+              </Button>
            </div>
         </SidebarFooter>
       </Sidebar>

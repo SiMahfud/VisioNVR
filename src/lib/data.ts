@@ -6,6 +6,13 @@ export type Camera = {
   location: string;
 };
 
+export type User = {
+    id: number;
+    username: string;
+    password?: string; // Password should not be sent to client
+    name: string;
+}
+
 export const mockCameras: Camera[] = [
   { id: 'cam-1', name: 'Lobby', status: 'online', ip: '192.168.1.101', location: 'Main Building' },
   { id: 'cam-2', name: 'Entrance', status: 'online', ip: '192.168.1.102', location: 'Main Building' },

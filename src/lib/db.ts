@@ -2,7 +2,7 @@
 
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
-import { Camera, MotionEvent } from './data';
+import { Camera, MotionEvent, User } from './data';
 
 async function getDb() {
   const db = await open({
@@ -50,4 +50,15 @@ export async function getMotionEvents(cameraId: string, date: Date): Promise<Mot
         startTime: new Date(event.startTime),
         endTime: new Date(event.endTime),
     })) as MotionEvent[];
+}
+
+export async function verifyUser(username: string, password_sent: string): Promise<User | null> {
+    const db = await getDb();
+    const user = await db.get<User>('SELECT * FROM users WHERE username = ?', username);
+    if (!user || user.password !== password_sent) {
+        return null;
+    }
+    // Don't send password to client
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
 }
