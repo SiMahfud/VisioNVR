@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export default function CamerasPage() {
             title: 'Camera Added',
             description: `${newCamera.name} has been added successfully.`,
         });
-        // Close dialog - this requires state management for the dialog
+        setIsAddDialogOpen(false); // Close dialog on success
     } else {
          toast({
             variant: 'destructive',
@@ -117,7 +118,7 @@ export default function CamerasPage() {
                     )}
                     Discover
                 </Button>
-                <Dialog>
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                         <Button variant="outline" className="w-full sm:w-auto">
                             <PlusCircle className="mr-2 h-4 w-4" />
