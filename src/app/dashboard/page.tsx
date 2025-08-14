@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { type Camera } from '@/lib/db';
-import { getCameras } from '@/lib/db';
+import { getCameras, getAppSetting } from '@/lib/db';
 import { Maximize, VideoOff, LayoutGrid, Check, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -67,16 +67,25 @@ export default function DashboardPage() {
   const [highlightedCamera, setHighlightedCamera] = useState<Camera | null>(null);
   const [tickerCameras, setTickerCameras] = useState<Camera[]>([]);
   const [tickerIndex, setTickerIndex] = useState(0);
+  const [highlightInterval, setHighlightInterval] = useState(3000);
 
   useEffect(() => {
-    async function loadCameras() {
-      const dbCameras = await getCameras();
+    async function loadData() {
+      const [dbCameras, intervalSetting] = await Promise.all([
+          getCameras(),
+          getAppSetting('highlightInterval')
+      ]);
+      
       setCameras(dbCameras);
       if (dbCameras.length > 0) {
         setHighlightedCamera(dbCameras[0]);
       }
+      
+      if (intervalSetting) {
+          setHighlightInterval(Number(intervalSetting) * 1000);
+      }
     }
-    loadCameras();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -86,11 +95,11 @@ export default function DashboardPage() {
 
       const interval = setInterval(() => {
         setTickerIndex(prev => (prev + 1) % otherCameras.length);
-      }, 3000); // Change camera every 3 seconds
+      }, highlightInterval); 
 
       return () => clearInterval(interval);
     }
-  }, [highlightMode, highlightedCamera, cameras]);
+  }, [highlightMode, highlightedCamera, cameras, highlightInterval]);
 
   const handleSetLayout = (l: typeof layouts[0] | {name: string, value: string, count: number}) => {
     setLayout(l);
@@ -182,20 +191,21 @@ export default function DashboardPage() {
 
       <Dialog open={!!fullscreenCamera} onOpenChange={(open) => !open && setFullscreenCamera(null)}>
         <DialogContent className="max-w-7xl h-[90vh] p-0">
-          <DialogHeader className="p-4 flex-row items-center justify-between">
-            {fullscreenCamera && <DialogTitle>{fullscreenCamera.name} - {fullscreenCamera.location}</DialogTitle>}
-            <Button variant="ghost" size="icon" onClick={() => setFullscreenCamera(null)} className="h-8 w-8">
+          <DialogHeader className="p-4 flex-row items-center justify-between absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent z-10">
+            {fullscreenCamera && <DialogTitle className="text-white">{fullscreenCamera.name} - {fullscreenCamera.location}</DialogTitle>}
+            <Button variant="ghost" size="icon" onClick={() => setFullscreenCamera(null)} className="h-8 w-8 text-white hover:text-white hover:bg-white/20">
                 <X className="h-5 w-5"/>
             </Button>
           </DialogHeader>
-          <div className="h-full w-full bg-black">
+          <div className="h-full w-full bg-black flex items-center justify-center">
              {fullscreenCamera && fullscreenCamera.status === 'online' ? (
                 <Image
                     src={`https://placehold.co/1920x1080.png`}
                     data-ai-hint="security camera footage"
                     alt={`Live feed from ${fullscreenCamera.name}`}
-                    fill
-                    className="object-contain"
+                    width={1920}
+                    height={1080}
+                    className="object-contain w-full h-full"
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-muted">

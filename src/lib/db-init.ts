@@ -66,7 +66,7 @@ async function initializeDB() {
       startTime TEXT,
       endTime TEXT,
       thumbnail TEXT,
-      FOREIGN KEY(cameraId) REFERENCES cameras(id)
+      FOREIGN KEY(cameraId) REFERENCES cameras(id) ON DELETE CASCADE
     );
   `);
   
@@ -76,6 +76,36 @@ async function initializeDB() {
       username TEXT UNIQUE,
       password TEXT,
       name TEXT
+    );
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_zones (
+        id TEXT PRIMARY KEY,
+        cameraId TEXT NOT NULL,
+        x INTEGER NOT NULL,
+        y INTEGER NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        FOREIGN KEY(cameraId) REFERENCES cameras(id) ON DELETE CASCADE
+    );
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_rules (
+        cameraId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        enabled BOOLEAN NOT NULL,
+        sensitivity INTEGER NOT NULL,
+        PRIMARY KEY (cameraId, type),
+        FOREIGN KEY(cameraId) REFERENCES cameras(id) ON DELETE CASCADE
     );
   `);
 
@@ -106,6 +136,13 @@ async function initializeDB() {
     // In a real app, you should hash the password!
     await db.run('INSERT INTO users (username, password, name) VALUES (?, ?, ?)', 'admin', 'admin', 'Admin User');
   }
+
+  const settingsCount = await db.get('SELECT COUNT(*) as count FROM app_settings');
+    if (settingsCount.count === 0) {
+        console.log('Seeding default app settings...');
+        await db.run('INSERT INTO app_settings (key, value) VALUES (?, ?)', 'highlightInterval', '3');
+    }
+
 
   console.log('Database initialization complete.');
 

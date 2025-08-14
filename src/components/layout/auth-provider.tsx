@@ -39,6 +39,7 @@ interface AuthContextType {
   login: (username: string, pass: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  refreshUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -65,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     };
     checkUser();
-  }, [pathname]);
+  }, []);
 
   const login = async (username: string, pass: string) => {
     const verifiedUser = await verifyUser(username, pass);
@@ -74,7 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // In a real app, use a secure JWT. For this demo, we'll use a simple base64 encoded object.
       const token = btoa(JSON.stringify(verifiedUser));
       setCookie('auth-token', token, 1);
-      router.push('/dashboard');
+      if (pathname === '/login') {
+          router.push('/dashboard');
+      }
     } else {
       throw new Error('Invalid credentials');
     }
@@ -86,14 +89,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
   
+  const refreshUser = (updatedUser: User) => {
+      setUser(updatedUser);
+      const token = btoa(JSON.stringify(updatedUser));
+      setCookie('auth-token', token, 1);
+  }
+  
   const isAuthPage = pathname === '/login';
 
   if (isLoading) {
       return <div className="flex h-screen items-center justify-center">Loading...</div>
   }
 
+  // If we are not on an auth page and there is no user, redirect to login
+  if (!isAuthPage && !user) {
+    router.push('/login');
+    return <div className="flex h-screen items-center justify-center">Redirecting to login...</div>;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, refreshUser }}>
       {isAuthPage ? children : <AppLayout>{children}</AppLayout>}
     </AuthContext.Provider>
   );

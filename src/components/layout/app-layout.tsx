@@ -20,6 +20,7 @@ import {
   Bot,
   Video,
   LogOut,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,6 +32,7 @@ const menuItems = [
   { href: '/playback', label: 'Timeline Playback', icon: PlaySquare },
   { href: '/cameras', label: 'Camera Management', icon: Camera },
   { href: '/analytics', label: 'Video Analytics', icon: Bot },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
