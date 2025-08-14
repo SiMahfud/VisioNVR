@@ -12,6 +12,7 @@ import { Maximize, VideoOff, LayoutGrid, Check, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
+import { VideoPlayer } from '@/components/video-player';
 
 const layouts = [
   { name: '1x1', value: 'grid-cols-1', count: 1 },
@@ -21,6 +22,9 @@ const layouts = [
 ];
 
 function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camera: Camera) => void }) {
+  const streamId = camera.rtspUrl ? btoa(camera.rtspUrl) : '';
+  const canPlayStream = camera.status === 'online' && camera.rtspUrl;
+
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-card/50">
@@ -32,17 +36,11 @@ function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camer
           <Maximize className="h-4 w-4" />
         </Button>
       </CardHeader>
-      <CardContent className="p-0 aspect-video relative">
-        {camera.status === 'online' ? (
+      <CardContent className="p-0 aspect-video relative bg-black">
+        {canPlayStream ? (
           <>
-            <Image
-              src={`https://placehold.co/600x400.png`}
-              data-ai-hint="security camera footage"
-              alt={`Live feed from ${camera.name}`}
-              fill
-              className="object-cover"
-            />
-            <Badge variant="destructive" className="absolute top-2 left-2 animate-pulse">
+            <VideoPlayer src={`/api/stream/${streamId}`} />
+            <Badge variant="destructive" className="absolute top-2 left-2 animate-pulse z-10 pointer-events-none">
               LIVE
             </Badge>
           </>
@@ -76,9 +74,11 @@ export default function DashboardPage() {
           getAppSetting('highlightInterval')
       ]);
       
-      setCameras(dbCameras);
-      if (dbCameras.length > 0) {
-        setHighlightedCamera(dbCameras[0]);
+      const onlineCameras = dbCameras.filter(c => c.enabled);
+      setCameras(onlineCameras);
+
+      if (onlineCameras.length > 0) {
+        setHighlightedCamera(onlineCameras[0]);
       }
       
       if (intervalSetting) {
@@ -165,15 +165,15 @@ export default function DashboardPage() {
                 className="overflow-hidden cursor-pointer transition-all hover:ring-2 hover:ring-primary"
                 onClick={() => setHighlightedCamera(camera)}
                 >
-                <CardContent className="p-0 aspect-video relative">
-                  <Image
-                      src={`https://placehold.co/300x200.png`}
-                      data-ai-hint="security camera footage"
-                      alt={`Thumbnail of ${camera.name}`}
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute bottom-0 w-full bg-black/50 p-1 text-center">
+                <CardContent className="p-0 aspect-video relative bg-black">
+                   {camera.status === 'online' && camera.rtspUrl ? (
+                      <VideoPlayer src={`/api/stream/${btoa(camera.rtspUrl)}`} />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
+                        <VideoOff className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 w-full bg-black/50 p-1 text-center pointer-events-none">
                         <p className="text-white text-xs truncate">{camera.name}</p>
                     </div>
                 </CardContent>
@@ -198,15 +198,8 @@ export default function DashboardPage() {
             </Button>
           </DialogHeader>
           <div className="h-full w-full bg-black flex items-center justify-center">
-             {fullscreenCamera && fullscreenCamera.status === 'online' ? (
-                <Image
-                    src={`https://placehold.co/1920x1080.png`}
-                    data-ai-hint="security camera footage"
-                    alt={`Live feed from ${fullscreenCamera.name}`}
-                    width={1920}
-                    height={1080}
-                    className="object-contain w-full h-full"
-                />
+             {fullscreenCamera && fullscreenCamera.status === 'online' && fullscreenCamera.rtspUrl ? (
+                <VideoPlayer src={`/api/stream/${btoa(fullscreenCamera.rtspUrl)}`} />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
                   <VideoOff className="h-24 w-24 text-muted-foreground" />
