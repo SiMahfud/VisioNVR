@@ -6,7 +6,7 @@ import sqlite3 from 'sqlite3';
 export type Camera = {
   id: string;
   name: string;
-  status: 'online' | 'offline';
+  status: 'online' | 'offline' | 'recording';
   ip: string;
   location: string;
   rtspUrl: string | null;
@@ -64,6 +64,14 @@ export async function getCameras(): Promise<Camera[]> {
   return cameras.map(c => ({...c, enabled: !!c.enabled})) as Camera[];
 }
 
+export async function getCamera(id: string): Promise<Camera | null> {
+    const db = await getDb();
+    const camera = await db.get('SELECT * FROM cameras WHERE id = ?', id);
+    if (!camera) return null;
+    return { ...camera, enabled: !!camera.enabled } as Camera;
+}
+
+
 export async function addCamera(camera: Omit<Camera, 'id' | 'status' | 'enabled'>): Promise<void> {
     const db = await getDb();
     await db.run(
@@ -110,6 +118,12 @@ export async function updateCamera(camera: Omit<Camera, 'status'>): Promise<void
         );
     }
 }
+
+export async function updateCameraStatus(id: string, status: Camera['status']): Promise<void> {
+    const db = await getDb();
+    await db.run('UPDATE cameras SET status = ? WHERE id = ?', status, id);
+}
+
 
 export async function deleteCamera(id: string): Promise<void> {
     const db = await getDb();

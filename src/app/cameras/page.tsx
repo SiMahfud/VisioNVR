@@ -18,14 +18,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye, Dot } from 'lucide-react';
 import { type Camera } from '@/lib/db';
-import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
+import { getCameras, addCamera, updateCamera, deleteCamera, updateCameraStatus } from '@/lib/db';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -433,6 +434,7 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
 
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
+  const { toast } = useToast();
 
   const fetchCameras = async () => {
     const dbCameras = await getCameras();
@@ -441,6 +443,8 @@ export default function CamerasPage() {
 
   useEffect(() => {
     fetchCameras();
+    const interval = setInterval(fetchCameras, 5000); // Refresh camera status every 5 seconds
+    return () => clearInterval(interval);
   }, []);
 
   const handleSaveCamera = async (cameraData: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => {
@@ -456,6 +460,59 @@ export default function CamerasPage() {
     await deleteCamera(id);
     await fetchCameras();
   };
+
+  const handleToggleRecording = async (camera: Camera) => {
+    const isRecording = camera.status === 'recording';
+    const endpoint = isRecording ? 'stop' : 'start';
+    const newStatus = isRecording ? 'online' : 'recording';
+    
+    try {
+      const response = await fetch(`/api/record/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cameraId: camera.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to toggle recording');
+      }
+
+      await updateCameraStatus(camera.id, newStatus);
+      await fetchCameras();
+      
+      toast({
+        title: `Recording ${isRecording ? 'Stopped' : 'Started'}`,
+        description: `Recording for ${camera.name} has been ${isRecording ? 'stopped' : 'started'}.`,
+      });
+
+    } catch (error) {
+      console.error('Failed to toggle recording:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: `Could not ${endpoint} recording. Is ffmpeg running on the server?`,
+      });
+    }
+  };
+
+  const getStatusVariant = (status: Camera['status']) => {
+    switch (status) {
+        case 'online': return 'default';
+        case 'offline': return 'destructive';
+        case 'recording': return 'secondary';
+        default: return 'outline';
+    }
+  }
+
+  const getStatusClass = (status: Camera['status']) => {
+     switch (status) {
+        case 'online': return 'bg-green-500 text-green-50';
+        case 'recording': return 'bg-red-500 text-red-50 animate-pulse';
+        default: return '';
+    }
+  }
+
 
   return (
     <Card>
@@ -500,7 +557,7 @@ export default function CamerasPage() {
             {cameras.map((camera) => (
               <TableRow key={camera.id}>
                 <TableCell>
-                  <Badge variant={camera.status === 'online' ? 'default' : 'destructive'} className={cn(camera.status === 'online' && 'bg-accent text-accent-foreground')}>
+                  <Badge variant={getStatusVariant(camera.status)} className={cn(getStatusClass(camera.status))}>
                     {camera.status}
                   </Badge>
                 </TableCell>
@@ -524,6 +581,21 @@ export default function CamerasPage() {
                        <CameraDialog camera={camera} onSave={handleSaveCamera}>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
                        </CameraDialog>
+                       <DropdownMenuItem 
+                          onClick={() => handleToggleRecording(camera)}
+                          disabled={!camera.enabled || camera.status === 'offline'}
+                        >
+                          {camera.status === 'recording' ? (
+                            <>
+                              <Dot className="mr-2 h-4 w-4 text-red-500 animate-pulse" /> Stop Recording
+                            </>
+                          ) : (
+                             <>
+                              <Dot className="mr-2 h-4 w-4 text-muted-foreground" /> Start Recording
+                            </>
+                          )}
+                       </DropdownMenuItem>
+                       <DropdownMenuSeparator />
                        <DeleteCameraAlert camera={camera} onDelete={handleDeleteCamera}>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:bg-destructive/20 focus:text-destructive">
                                 Delete
