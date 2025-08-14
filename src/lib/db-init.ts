@@ -7,7 +7,7 @@ async function initializeDB() {
   const dbFile = './visionary.db';
 
   if (fs.existsSync(dbFile)) {
-    console.log('Database already exists. Checking for user table.');
+    console.log('Database already exists. Checking tables.');
   } else {
     console.log('Database not found, initializing...');
   }

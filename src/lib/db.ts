@@ -21,7 +21,8 @@ export async function getCameras(): Promise<Camera[]> {
 export async function addCamera(camera: Omit<Camera, 'id' | 'status'>) {
     const db = await getDb();
     const result = await db.run(
-        'INSERT INTO cameras (name, ip, location, status) VALUES (?, ?, ?, ?)',
+        'INSERT INTO cameras (id, name, ip, location, status) VALUES (?, ?, ?, ?, ?)',
+        `cam-${Date.now()}`,
         camera.name,
         camera.ip,
         camera.location,
@@ -54,10 +55,13 @@ export async function getMotionEvents(cameraId: string, date: Date): Promise<Mot
 
 export async function verifyUser(username: string, password_sent: string): Promise<User | null> {
     const db = await getDb();
-    const user = await db.get<User>('SELECT * FROM users WHERE username = ?', username);
+    // Select all necessary user fields but exclude password from the final result
+    const user = await db.get<User>('SELECT id, username, password, name FROM users WHERE username = ?', username);
+
     if (!user || user.password !== password_sent) {
         return null;
     }
+    
     // Don't send password to client
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;

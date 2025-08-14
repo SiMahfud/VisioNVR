@@ -82,14 +82,23 @@ export default function CamerasPage() {
     };
 
     if (newCamera.name && newCamera.ip) {
-        await addCamera(newCamera);
-        const dbCameras = await getCameras();
-        setCameras(dbCameras);
-        toast({
-            title: 'Camera Added',
-            description: `${newCamera.name} has been added successfully.`,
-        });
-        setIsAddDialogOpen(false); // Close dialog on success
+        try {
+            await addCamera(newCamera);
+            const dbCameras = await getCameras();
+            setCameras(dbCameras);
+            toast({
+                title: 'Camera Added',
+                description: `${newCamera.name} has been added successfully.`,
+            });
+            setIsAddDialogOpen(false); // Close dialog on success
+        } catch (error) {
+            console.error(error);
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: `Failed to add camera.`,
+            });
+        }
     } else {
          toast({
             variant: 'destructive',
