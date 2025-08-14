@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Download, Camera, Play, Pause } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Camera, Play, Pause, ChevronsRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -13,6 +14,7 @@ import { format } from 'date-fns';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 function Timeline({ motionEvents, date }: { motionEvents: MotionEvent[], date: Date }) {
@@ -67,6 +69,8 @@ export default function PlaybackPage() {
   const [selectedCamera, setSelectedCamera] = useState<Camera | undefined>();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const playbackSpeeds = [0.5, 1, 2, 4];
 
   useEffect(() => {
     async function loadCameras() {
@@ -103,10 +107,24 @@ export default function PlaybackPage() {
                 className="object-contain"
             />
             <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-              <div className="flex items-center justify-center">
-                  <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)}>
-                      {isPlaying ? <Pause className="h-8 w-8 text-white" /> : <Play className="h-8 w-8 text-white" />}
+              <div className="flex items-center justify-center gap-4">
+                  <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:bg-white/20 hover:text-white">
+                      {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8" />}
                   </Button>
+                   <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                         <Button variant="ghost" className="text-white hover:bg-white/20 hover:text-white">
+                            <ChevronsRight className="h-5 w-5 mr-2" /> {playbackSpeed}x
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {playbackSpeeds.map(speed => (
+                            <DropdownMenuItem key={speed} onSelect={() => setPlaybackSpeed(speed)}>
+                                {speed}x
+                            </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
               </div>
             </div>
           </CardContent>
@@ -189,6 +207,11 @@ export default function PlaybackPage() {
                             </div>
                         </div>
                     ))}
+                    {motionEvents.length === 0 && (
+                        <div className="text-center text-muted-foreground py-10">
+                            <p>No motion events for this day.</p>
+                        </div>
+                    )}
                 </div>
             </ScrollArea>
           </CardContent>
@@ -197,3 +220,4 @@ export default function PlaybackPage() {
     </div>
   );
 }
+
