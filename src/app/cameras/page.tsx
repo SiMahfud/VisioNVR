@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye } from 'lucide-react';
 import { type Camera } from '@/lib/db';
 import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
 import {
@@ -53,20 +53,31 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { scanOnvifCameras } from '@/lib/onvif';
+import { VideoPlayer } from '@/components/video-player';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
 // Add/Edit Dialog Component
 function CameraDialog({ 
   camera, 
   onSave, 
-  children 
+  children,
+  defaultValues,
+  isOpen: controlledIsOpen,
+  onOpenChange: setControlledIsOpen
 }: { 
   camera?: Camera | null, 
   onSave: (cam: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => Promise<void>,
-  children: React.ReactNode
+  children: React.ReactNode,
+  defaultValues?: Partial<Camera>,
+  isOpen?: boolean,
+  onOpenChange?: (isOpen: boolean) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isLocalOpen, setIsLocalOpen] = useState(false);
   const [password, setPassword] = useState('');
   const { toast } = useToast();
+
+  const isOpen = controlledIsOpen ?? isLocalOpen;
+  const setIsOpen = setControlledIsOpen ?? setIsLocalOpen;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -112,7 +123,13 @@ function CameraDialog({
     if (isOpen) {
         setPassword('');
     }
-  }, [isOpen])
+  }, [isOpen]);
+  
+  useEffect(() => {
+      if (defaultValues) {
+        // This is a way to set form values when dialog opens with defaults
+      }
+  }, [defaultValues, isOpen])
 
 
   return (
@@ -121,7 +138,7 @@ function CameraDialog({
         <DialogContent className="sm:max-w-2xl">
             <form onSubmit={handleSubmit}>
                 <DialogHeader>
-                    <DialogTitle>{camera ? 'Edit Camera' : 'Add Camera Manually'}</DialogTitle>
+                    <DialogTitle>{camera ? 'Edit Camera' : 'Add Camera'}</DialogTitle>
                     <DialogDescription>
                         {camera ? 'Update the details for this camera.' : 'Enter the details of your camera to add it to the system.'}
                     </DialogDescription>
@@ -129,23 +146,23 @@ function CameraDialog({
                 <div className="grid gap-6 py-4 sm:grid-cols-2">
                     <div className="grid gap-2">
                         <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
-                        <Input id="name" name="name" defaultValue={camera?.name} placeholder="Front Door Camera" required />
+                        <Input id="name" name="name" defaultValue={defaultValues?.name ?? camera?.name} placeholder="Front Door Camera" required />
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="location">Location</Label>
-                        <Input id="location" name="location" defaultValue={camera?.location} placeholder="Main Building" />
+                        <Input id="location" name="location" defaultValue={defaultValues?.location ?? camera?.location} placeholder="Main Building" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="ip">IP Address <span className="text-destructive">*</span></Label>
-                        <Input id="ip" name="ip" defaultValue={camera?.ip} placeholder="192.168.1.200" required/>
+                        <Input id="ip" name="ip" defaultValue={defaultValues?.ip ?? camera?.ip} placeholder="192.168.1.200" required/>
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="rtspUrl">RTSP URL</Label>
-                        <Input id="rtspUrl" name="rtspUrl" defaultValue={camera?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
+                        <Input id="rtspUrl" name="rtspUrl" defaultValue={defaultValues?.rtspUrl ?? camera?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="username">Camera Username</Label>
-                        <Input id="username" name="username" defaultValue={camera?.username ?? ''} placeholder="admin" />
+                        <Input id="username" name="username" defaultValue={defaultValues?.username ?? camera?.username ?? ''} placeholder="admin" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="password">Camera Password</Label>
@@ -238,52 +255,69 @@ function DeleteCameraAlert({
     );
 }
 
+// Preview Dialog Component
+function PreviewDialog({ rtspUrl }: { rtspUrl: string | null }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const cameraId = btoa(rtspUrl ?? ''); // Create a temporary ID for the stream URL from the rtsp url
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!rtspUrl}>
+                    <Eye className="mr-2 h-4 w-4" /> Preview
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Live Preview</DialogTitle>
+                    <DialogDescription>
+                        Real-time stream from the camera. Requires ffmpeg to be installed on the server.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="aspect-video bg-black rounded-md">
+                   {isOpen && rtspUrl && <VideoPlayer src={`/api/stream/${cameraId}`} />}
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 // Discovery Dialog
-function DiscoveryDialog({ children }: { children: React.ReactNode }) {
+function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSave: (cam: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => Promise<void> }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [ipRangeInput, setIpRangeInput] = useState('192.168.1.1-192.168.1.254');
   const [foundCameras, setFoundCameras] = useState<any[]>([]);
   const { toast } = useToast();
 
+  const [addCameraDialogOpen, setAddCameraDialogOpen] = useState(false);
+  const [cameraDefaults, setCameraDefaults] = useState<Partial<Camera>>({});
+
   const handleDiscover = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsDiscovering(true);
     setFoundCameras([]);
 
-    if (!ipRangeInput.includes('-') && ipRangeInput.split('.').length !== 4) {
-      toast({
-        variant: 'destructive',
-        title: 'Invalid IP Range',
-        description: 'Please enter a valid IP address or range (e.g., 192.168.1.1-192.168.1.254 or 192.168.1.10).'
-      });
-      setIsDiscovering(false);
-      return;
-    }
-
-    toast({
-      title: 'Discovery Started',
-      description: 'Scanning the local network for ONVIF-compatible devices. This may take a moment.',
-    });
-
     try {
-      const response = await fetch('/api/onvif-scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ipRange: ipRangeInput }),
-      });
+        const response = await fetch('/api/onvif-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ipRange: ipRangeInput }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
 
-      const cameras = await response.json();
-      setFoundCameras(cameras);
+        const data = await response.json();
+        setFoundCameras(data.cameras);
 
-      toast({
-        title: 'Discovery Complete',
-        description: `${cameras.length} camera(s) found.`,
-      });
+        toast({
+            title: 'Discovery Complete',
+            description: `${data.cameras.length} camera(s) found.`,
+        });
+
     } catch (error) {
       console.error('Error during ONVIF scan:', error);
       toast({
@@ -298,11 +332,21 @@ function DiscoveryDialog({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // RETURN utama komponen
+  const handleSaveScannedCamera = (cam: any) => {
+    const rtspUri = cam.profiles?.[0]?.stream?.rtsp;
+    setCameraDefaults({
+        name: `${cam.information.manufacturer} ${cam.information.model}`,
+        ip: cam.ip,
+        rtspUrl: rtspUri || '',
+    });
+    setAddCameraDialogOpen(true);
+  }
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-3xl">
         <form onSubmit={handleDiscover}>
           <DialogHeader>
             <DialogTitle>Discover ONVIF Cameras</DialogTitle>
@@ -312,47 +356,76 @@ function DiscoveryDialog({ children }: { children: React.ReactNode }) {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="ip-range" className="text-right">IP Range</Label>
-              <div className="col-span-3 flex items-center gap-2">
-                <Input
-                  id="ip-range"
-                  name="ip-range"
-                  value={ipRangeInput}
-                  onChange={(e) => setIpRangeInput(e.target.value)}
-                  placeholder="e.g., 192.168.1.1-192.168.1.254"
-                  className="col-span-3"
-                />
+            <div className="flex items-end gap-2">
+              <div className="flex-grow grid gap-1.5">
+                  <Label htmlFor="ip-range">IP Range</Label>
+                  <Input
+                    id="ip-range"
+                    name="ip-range"
+                    value={ipRangeInput}
+                    onChange={(e) => setIpRangeInput(e.target.value)}
+                    placeholder="e.g., 192.168.1.1-192.168.1.254"
+                  />
               </div>
+                <Button type="submit" disabled={isDiscovering}>
+                  {isDiscovering ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wifi className="mr-2 h-4 w-4" />
+                  )}
+                  Start Scan
+                </Button>
             </div>
 
-            {foundCameras.length > 0 && (
-              <div className="grid gap-2">
-                <h4 className="font-medium leading-none">Found Cameras:</h4>
-                <ul className="max-h-40 overflow-y-auto border rounded p-2">
-                  {foundCameras.map((cam, index) => (
-                    <li key={index} className="text-sm text-muted-foreground">
-                      {cam.information?.Manufacturer || 'Unknown'} {cam.information?.Model || 'Device'} at {cam.ip}:{cam.port}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <ScrollArea className="h-72 border rounded-md p-2">
+                 {isDiscovering && (
+                    <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        <p className="ml-4 text-muted-foreground">Scanning network...</p>
+                    </div>
+                )}
+                {!isDiscovering && foundCameras.length > 0 && (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Device</TableHead>
+                                <TableHead>IP Address</TableHead>
+                                <TableHead>RTSP URL</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {foundCameras.map((cam, index) => (
+                            <TableRow key={index}>
+                                <TableCell className="font-medium">
+                                    <div>{cam.information.manufacturer}</div>
+                                    <div className="text-xs text-muted-foreground">{cam.information.model}</div>
+                                </TableCell>
+                                <TableCell>{cam.ip}:{cam.port}</TableCell>
+                                <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.[0]?.stream?.rtsp || 'N/A'}</TableCell>
+                                <TableCell className="text-right flex gap-2 justify-end">
+                                    <PreviewDialog rtspUrl={cam.profiles?.[0]?.stream?.rtsp} />
+                                    <Button size="sm" onClick={() => handleSaveScannedCamera(cam)}>Save</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                )}
+                 {!isDiscovering && foundCameras.length === 0 && (
+                     <div className="flex items-center justify-center h-full">
+                         <p className="text-muted-foreground">No cameras found. Start a scan to discover devices.</p>
+                     </div>
+                 )}
+            </ScrollArea>
           </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={isDiscovering}>
-              {isDiscovering ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Wifi className="mr-2 h-4 w-4" />
-              )}
-              Start Scan
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+     <CameraDialog onSave={onSave} isOpen={addCameraDialogOpen} onOpenChange={setAddCameraDialogOpen} defaultValues={cameraDefaults}>
+        <span />
+    </CameraDialog>
+    </>
   );
 }
 
@@ -374,7 +447,7 @@ export default function CamerasPage() {
     if ('id' in cameraData) {
       await updateCamera(cameraData);
     } else {
-      await addCamera(cameraData as Omit<Camera, 'id'|'status'|'enabled'>);
+      await addCamera(cameraData as Omit<Camera, 'id'|'status'>);
     }
     await fetchCameras();
   };
@@ -395,7 +468,7 @@ export default function CamerasPage() {
                 </CardDescription>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
-                 <DiscoveryDialog>
+                 <DiscoveryDialog onSave={handleSaveCamera}>
                     <Button className="w-full sm:w-auto">
                         <Wifi className="mr-2 h-4 w-4" />
                         Discover
