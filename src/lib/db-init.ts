@@ -3,14 +3,14 @@ import sqlite3 from 'sqlite3';
 import fs from 'fs';
 
 const mockCameras = [
-  { id: 'cam-1', name: 'Lobby', status: 'online', ip: '192.168.1.101', location: 'Main Building' },
-  { id: 'cam-2', name: 'Entrance', status: 'online', ip: '192.168.1.102', location: 'Main Building' },
-  { id: 'cam-3', name: 'Parking Lot', status: 'offline', ip: '192.168.1.103', location: 'Outdoor' },
-  { id: 'cam-4', name: 'Warehouse', status: 'online', ip: '192.168.1.104', location: 'Building B' },
-  { id: 'cam-5', name: 'Office 1', status: 'online', ip: '192.168.1.105', location: 'Main Building' },
-  { id: 'cam-6', name: 'Rooftop', status: 'online', ip: '192.168.1.106', location: 'Main Building' },
-  { id: 'cam-7', name: 'Server Room', status: 'online', ip: '192.168.1.107', location: 'Basement' },
-  { id: 'cam-8', name: 'Back Door', status: 'offline', ip: '192.168.1.108', location: 'Building B' },
+  { id: 'cam-1', name: 'Lobby', status: 'online', ip: '192.168.1.101', location: 'Main Building', rtspUrl: 'rtsp://192.168.1.101:554/stream1', recordingMode: 'motion', username: 'user', password: 'password', enabled: true },
+  { id: 'cam-2', name: 'Entrance', status: 'online', ip: '192.168.1.102', location: 'Main Building', rtspUrl: 'rtsp://192.168.1.102:554/stream1', recordingMode: 'continuous', username: 'user', password: 'password', enabled: true },
+  { id: 'cam-3', name: 'Parking Lot', status: 'offline', ip: '192.168.1.103', location: 'Outdoor', rtspUrl: 'rtsp://192.168.1.103:554/stream1', recordingMode: 'scheduled', username: 'user', password: 'password', enabled: false },
+  { id: 'cam-4', name: 'Warehouse', status: 'online', ip: '192.168.1.104', location: 'Building B', rtspUrl: 'rtsp://192.168.1.104:554/stream1', recordingMode: 'motion', username: 'user', password: 'password', enabled: true },
+  { id: 'cam-5', name: 'Office 1', status: 'online', ip: '192.168.1.105', location: 'Main Building', rtspUrl: 'rtsp://192.168.1.105:554/stream1', recordingMode: 'continuous', username: 'user', password: 'password', enabled: true },
+  { id: 'cam-6', name: 'Rooftop', status: 'online', ip: '192.168.1.106', location: 'Main Building', rtspUrl: 'rtsp://192.168.1.106:554/stream1', recordingMode: 'motion', username: 'user', password: 'password', enabled: true },
+  { id: 'cam-7', name: 'Server Room', status: 'online', ip: '192.168.1.107', location: 'Basement', rtspUrl: 'rtsp://192.168.1.107:554/stream1', recordingMode: 'scheduled', username: 'user', password: 'password', enabled: false },
+  { id: 'cam-8', name: 'Back Door', status: 'offline', ip: '192.168.1.108', location: 'Building B', rtspUrl: 'rtsp://192.168.1.108:554/stream1', recordingMode: 'motion', username: 'user', password: 'password', enabled: true },
 ];
 
 const today = new Date();
@@ -49,15 +49,42 @@ async function initializeDB() {
     driver: sqlite3.Database,
   });
 
+  await db.exec('PRAGMA foreign_keys = ON;');
+  
+  // Drop existing table to update schema - DEVELOPMENT ONLY
+  // In production, you would use a migration system.
+  // await db.exec('DROP TABLE IF EXISTS cameras');
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS cameras (
       id TEXT PRIMARY KEY,
-      name TEXT,
-      status TEXT,
-      ip TEXT,
-      location TEXT
+      name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      ip TEXT NOT NULL,
+      location TEXT,
+      rtspUrl TEXT,
+      recordingMode TEXT DEFAULT 'motion',
+      username TEXT,
+      password TEXT,
+      enabled BOOLEAN DEFAULT true
     );
   `);
+  
+  try {
+     await db.exec('ALTER TABLE cameras ADD COLUMN rtspUrl TEXT');
+     await db.exec("ALTER TABLE cameras ADD COLUMN recordingMode TEXT DEFAULT 'motion'");
+     await db.exec('ALTER TABLE cameras ADD COLUMN username TEXT');
+     await db.exec('ALTER TABLE cameras ADD COLUMN password TEXT');
+     await db.exec('ALTER TABLE cameras ADD COLUMN enabled BOOLEAN DEFAULT true');
+     console.log('Camera table schema updated.');
+  } catch (e: any) {
+    if (e.message.includes('duplicate column name')) {
+        // console.log('Camera table schema already up to date.');
+    } else {
+        console.error('Error updating camera table schema:', e);
+    }
+  }
+
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS motion_events (
@@ -113,9 +140,9 @@ async function initializeDB() {
   const cameraCount = await db.get('SELECT COUNT(*) as count FROM cameras');
   if (cameraCount.count === 0) {
     console.log('Seeding cameras...');
-    const cameraStmt = await db.prepare('INSERT INTO cameras (id, name, status, ip, location) VALUES (?, ?, ?, ?, ?)');
+    const cameraStmt = await db.prepare('INSERT INTO cameras (id, name, status, ip, location, rtspUrl, recordingMode, username, password, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     for (const camera of mockCameras) {
-      await cameraStmt.run(camera.id, camera.name, camera.status, camera.ip, camera.location);
+      await cameraStmt.run(camera.id, camera.name, camera.status, camera.ip, camera.location, camera.rtspUrl, camera.recordingMode, camera.username, camera.password, camera.enabled);
     }
     await cameraStmt.finalize();
   }

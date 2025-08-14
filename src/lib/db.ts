@@ -9,6 +9,11 @@ export type Camera = {
   status: 'online' | 'offline';
   ip: string;
   location: string;
+  rtspUrl: string | null;
+  recordingMode: 'continuous' | 'scheduled' | 'motion';
+  username: string | null;
+  password?: string | null;
+  enabled: boolean;
 };
 
 export type User = {
@@ -56,30 +61,54 @@ async function getDb() {
 export async function getCameras(): Promise<Camera[]> {
   const db = await getDb();
   const cameras = await db.all('SELECT * FROM cameras ORDER BY name');
-  return cameras as Camera[];
+  return cameras.map(c => ({...c, enabled: !!c.enabled})) as Camera[];
 }
 
-export async function addCamera(camera: Omit<Camera, 'id' | 'status'>): Promise<void> {
+export async function addCamera(camera: Omit<Camera, 'id' | 'status' | 'enabled'>): Promise<void> {
     const db = await getDb();
     await db.run(
-        'INSERT INTO cameras (id, name, ip, location, status) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO cameras (id, name, ip, location, status, rtspUrl, recordingMode, username, password, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         `cam-${Date.now()}`,
         camera.name,
         camera.ip,
         camera.location,
-        'offline' // New cameras are offline by default
+        'offline', // New cameras are offline by default
+        camera.rtspUrl,
+        camera.recordingMode,
+        camera.username,
+        camera.password,
+        true
     );
 }
 
-export async function updateCamera(camera: Pick<Camera, 'id' | 'name' | 'ip' | 'location'>): Promise<void> {
+export async function updateCamera(camera: Omit<Camera, 'status'>): Promise<void> {
     const db = await getDb();
-    await db.run(
-        'UPDATE cameras SET name = ?, ip = ?, location = ? WHERE id = ?',
-        camera.name,
-        camera.ip,
-        camera.location,
-        camera.id
-    );
+    if(camera.password) {
+        await db.run(
+            'UPDATE cameras SET name = ?, ip = ?, location = ?, rtspUrl = ?, recordingMode = ?, username = ?, password = ?, enabled = ? WHERE id = ?',
+            camera.name,
+            camera.ip,
+            camera.location,
+            camera.rtspUrl,
+            camera.recordingMode,
+            camera.username,
+            camera.password,
+            camera.enabled,
+            camera.id
+        );
+    } else {
+        await db.run(
+            'UPDATE cameras SET name = ?, ip = ?, location = ?, rtspUrl = ?, recordingMode = ?, username = ?, enabled = ? WHERE id = ?',
+            camera.name,
+            camera.ip,
+            camera.location,
+            camera.rtspUrl,
+            camera.recordingMode,
+            camera.username,
+            camera.enabled,
+            camera.id
+        );
+    }
 }
 
 export async function deleteCamera(id: string): Promise<void> {

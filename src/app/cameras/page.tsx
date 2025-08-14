@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power } from 'lucide-react';
 import { type Camera } from '@/lib/db';
 import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
 import {
@@ -51,6 +51,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 // Add/Edit Dialog Component
@@ -60,10 +62,11 @@ function CameraDialog({
   children 
 }: { 
   camera?: Camera | null, 
-  onSave: (cam: Omit<Camera, 'id' | 'status'> | Camera) => Promise<void>,
+  onSave: (cam: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => Promise<void>,
   children: React.ReactNode
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -73,11 +76,17 @@ function CameraDialog({
         name: formData.get('name') as string,
         ip: formData.get('ip') as string,
         location: formData.get('location') as string,
+        rtspUrl: formData.get('rtspUrl') as string,
+        recordingMode: formData.get('recordingMode') as 'continuous' | 'scheduled' | 'motion',
+        username: formData.get('username') as string,
+        password: password,
+        enabled: (formData.get('enabled') as string) === 'on',
     };
 
-    if (cameraData.name && cameraData.ip && cameraData.location) {
+    if (cameraData.name && cameraData.ip) {
         try {
-            await onSave(camera ? { ...camera, ...cameraData } : cameraData);
+            const dataToSave = camera ? { ...camera, ...cameraData, password: password || undefined } : cameraData;
+            await onSave(dataToSave as any);
             toast({
                 title: camera ? 'Camera Updated' : 'Camera Added',
                 description: `${cameraData.name} has been saved successfully.`,
@@ -95,35 +104,78 @@ function CameraDialog({
          toast({
             variant: 'destructive',
             title: 'Error',
-            description: `Please fill in all fields.`,
+            description: `Please fill in all required fields.`,
         });
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+        setPassword('');
+    }
+  }, [isOpen])
+
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>{children}</DialogTrigger>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
             <form onSubmit={handleSubmit}>
                 <DialogHeader>
                     <DialogTitle>{camera ? 'Edit Camera' : 'Add Camera Manually'}</DialogTitle>
                     <DialogDescription>
-                        {camera ? 'Update the details of your camera.' : 'Enter the details of your camera to add it to the system.'}
+                        {camera ? 'Update the details for this camera.' : 'Enter the details of your camera to add it to the system.'}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="name" className="text-right">Name</Label>
-                        <Input id="name" name="name" defaultValue={camera?.name} placeholder="Front Door Camera" className="col-span-3" />
+                <div className="grid gap-6 py-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                        <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
+                        <Input id="name" name="name" defaultValue={camera?.name} placeholder="Front Door Camera" required />
                     </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="location" className="text-right">Location</Label>
-                        <Input id="location" name="location" defaultValue={camera?.location} placeholder="Main Building" className="col-span-3" />
+                     <div className="grid gap-2">
+                        <Label htmlFor="location">Location</Label>
+                        <Input id="location" name="location" defaultValue={camera?.location} placeholder="Main Building" />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="ip" className="text-right">IP Address</Label>
-                        <Input id="ip" name="ip" defaultValue={camera?.ip} placeholder="192.168.1.200" className="col-span-3" />
+                    <div className="grid gap-2">
+                        <Label htmlFor="ip">IP Address <span className="text-destructive">*</span></Label>
+                        <Input id="ip" name="ip" defaultValue={camera?.ip} placeholder="192.168.1.200" required/>
                     </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="rtspUrl">RTSP URL</Label>
+                        <Input id="rtspUrl" name="rtspUrl" defaultValue={camera?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="username">Camera Username</Label>
+                        <Input id="username" name="username" defaultValue={camera?.username ?? ''} placeholder="admin" />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="password">Camera Password</Label>
+                        <Input id="password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={camera ? "Leave blank to keep unchanged" : ""} />
+                    </div>
+                     <div className="grid gap-2">
+                        <Label htmlFor="recordingMode">Recording Mode</Label>
+                        <Select name="recordingMode" defaultValue={camera?.recordingMode ?? 'motion'}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="motion">
+                                    <div className="flex items-center gap-2"><Radio className="h-4 w-4 text-muted-foreground" /> Motion Detection</div>
+                                </SelectItem>
+                                <SelectItem value="continuous">
+                                    <div className="flex items-center gap-2"><Video className="h-4 w-4 text-muted-foreground" /> Continuous</div>
+                                </SelectItem>
+                                <SelectItem value="scheduled">
+                                    <div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-muted-foreground" /> Scheduled</div>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Switch id="enabled" name="enabled" defaultChecked={camera?.enabled ?? true} />
+                        <Label htmlFor="enabled">Camera Enabled</Label>
+                    </div>
+
                 </div>
                 <DialogFooter>
                     <Button type="submit">Save Camera</Button>
@@ -260,11 +312,11 @@ export default function CamerasPage() {
     fetchCameras();
   }, []);
 
-  const handleSaveCamera = async (cameraData: Omit<Camera, 'id' | 'status'> | Camera) => {
+  const handleSaveCamera = async (cameraData: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => {
     if ('id' in cameraData) {
       await updateCamera(cameraData);
     } else {
-      await addCamera(cameraData);
+      await addCamera(cameraData as Omit<Camera, 'id'|'status'|'enabled'>);
     }
     await fetchCameras();
   };
@@ -305,9 +357,11 @@ export default function CamerasPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Status</TableHead>
+              <TableHead>Enabled</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>IP Address</TableHead>
+              <TableHead>Recording</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -319,9 +373,15 @@ export default function CamerasPage() {
                     {camera.status}
                   </Badge>
                 </TableCell>
+                 <TableCell>
+                    <Badge variant={camera.enabled ? 'secondary' : 'outline'} className={cn(camera.enabled ? 'text-accent-foreground' : 'text-muted-foreground')}>
+                        {camera.enabled ? 'Yes' : 'No'}
+                    </Badge>
+                </TableCell>
                 <TableCell className="font-medium">{camera.name}</TableCell>
                 <TableCell>{camera.location}</TableCell>
                 <TableCell>{camera.ip}</TableCell>
+                <TableCell className="capitalize">{camera.recordingMode}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
