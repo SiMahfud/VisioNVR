@@ -14,21 +14,36 @@ async function getDb() {
 
 export async function getCameras(): Promise<Camera[]> {
   const db = await getDb();
-  const cameras = await db.all('SELECT * FROM cameras');
+  const cameras = await db.all('SELECT * FROM cameras ORDER BY name');
   return cameras as Camera[];
 }
 
-export async function addCamera(camera: Omit<Camera, 'id' | 'status'>) {
+export async function addCamera(camera: Omit<Camera, 'id' | 'status'>): Promise<void> {
     const db = await getDb();
-    const result = await db.run(
+    await db.run(
         'INSERT INTO cameras (id, name, ip, location, status) VALUES (?, ?, ?, ?, ?)',
         `cam-${Date.now()}`,
         camera.name,
         camera.ip,
         camera.location,
-        'offline'
+        'offline' // New cameras are offline by default
     );
-    return result;
+}
+
+export async function updateCamera(camera: Pick<Camera, 'id' | 'name' | 'ip' | 'location'>): Promise<void> {
+    const db = await getDb();
+    await db.run(
+        'UPDATE cameras SET name = ?, ip = ?, location = ? WHERE id = ?',
+        camera.name,
+        camera.ip,
+        camera.location,
+        camera.id
+    );
+}
+
+export async function deleteCamera(id: string): Promise<void> {
+    const db = await getDb();
+    await db.run('DELETE FROM cameras WHERE id = ?', id);
 }
 
 
