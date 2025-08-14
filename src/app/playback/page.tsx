@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Download, Camera, Play, Pause, ChevronsRight, ZoomIn, ZoomOut, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Camera, Play, Pause, ChevronsRight, ZoomIn, ZoomOut, Search, VideoOff } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -16,6 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { VideoPlayer } from '@/components/video-player';
 
 
 const MIN_ZOOM = 1; // 24-hour view
@@ -224,7 +224,7 @@ export default function PlaybackPage() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackSpeeds = [0.5, 1, 2, 4];
   const [playbackTime, setPlaybackTime] = useState(new Date());
-  const [currentEventImage, setCurrentEventImage] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<MotionEvent | null>(null);
 
 
   useEffect(() => {
@@ -243,7 +243,7 @@ export default function PlaybackPage() {
         if (selectedCamera && date) {
             const events = await getMotionEvents(selectedCamera.id, date);
             setMotionEvents(events);
-            setCurrentEventImage(null);
+            setSelectedEvent(null);
             // Set initial playback time to the start of the day or first event
             const newPlaybackTime = new Date(date);
             newPlaybackTime.setHours(0,0,0,0);
@@ -259,7 +259,7 @@ export default function PlaybackPage() {
 
   const handleEventClick = (event: MotionEvent) => {
     handleSetPlaybackTime(new Date(event.startTime));
-    setCurrentEventImage(event.thumbnail);
+    setSelectedEvent(event);
   };
 
 
@@ -268,30 +268,26 @@ export default function PlaybackPage() {
       <div className="lg:col-span-2 flex flex-col gap-6">
         <Card>
           <CardContent className="p-0 aspect-video relative bg-black flex items-center justify-center">
-            {currentEventImage ? (
-                 <Image
-                    src={currentEventImage}
-                    alt={`Playback for ${selectedCamera?.name}`}
-                    fill
-                    className="object-contain"
-                    data-ai-hint="motion blur"
-                />
+            {selectedEvent && selectedCamera ? (
+                 // The VideoPlayer component will handle the HLS stream from our new API route
+                 <VideoPlayer src={`/api/playback/${selectedEvent.id}`} />
             ) : (
-                <div className="text-center text-muted-foreground">
+                <div className="text-center text-muted-foreground flex flex-col items-center gap-2">
+                    <VideoOff className="h-10 w-10" />
                     <p>Select a motion event to view playback</p>
                 </div>
             )}
-             <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded-md text-sm font-mono">
+             <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded-md text-sm font-mono pointer-events-none">
                 {format(playbackTime, 'yyyy-MM-dd HH:mm:ss')}
             </div>
             <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
               <div className="flex items-center justify-center gap-4">
-                  <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:bg-white/20 hover:text-white">
+                  <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:bg-white/20 hover:text-white" disabled={!selectedEvent}>
                       {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8" />}
                   </Button>
                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                         <Button variant="ghost" className="text-white hover:bg-white/20 hover:text-white">
+                         <Button variant="ghost" className="text-white hover:bg-white/20 hover:text-white" disabled={!selectedEvent}>
                             <ChevronsRight className="h-5 w-5 mr-2" /> {playbackSpeed}x
                         </Button>
                       </DropdownMenuTrigger>
@@ -374,7 +370,7 @@ export default function PlaybackPage() {
                         </PopoverContent>
                     </Popover>
                 </div>
-                <Button>
+                <Button disabled={!selectedEvent}>
                     <Download className="mr-2 h-4 w-4" />
                     Export Clip
                 </Button>
@@ -388,7 +384,7 @@ export default function PlaybackPage() {
             <ScrollArea className="h-72">
                 <div className="grid gap-4">
                     {motionEvents.map(event => (
-                        <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => handleEventClick(event)}>
+                        <div key={event.id} className={cn("flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer", selectedEvent?.id === event.id && "bg-primary/20 hover:bg-primary/30")} onClick={() => handleEventClick(event)}>
                             <Image src={event.thumbnail} alt="Motion event thumbnail" width={80} height={50} className="rounded-md" data-ai-hint="motion blur" />
                             <div>
                                 <p className="text-sm font-medium">{format(new Date(event.startTime), 'HH:mm:ss')}</p>
@@ -409,4 +405,3 @@ export default function PlaybackPage() {
     </div>
   );
 }
-
