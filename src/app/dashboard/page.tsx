@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { mockCameras } from '@/lib/data';
+import { type Camera } from '@/lib/data';
+import { getCameras } from '@/lib/db';
 import { Maximize, VideoOff, LayoutGrid, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -19,6 +20,16 @@ const layouts = [
 
 export default function DashboardPage() {
   const [layout, setLayout] = useState(layouts[1]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+
+  useEffect(() => {
+    async function loadCameras() {
+        const dbCameras = await getCameras();
+        setCameras(dbCameras);
+    }
+    loadCameras();
+  }, []);
+
 
   return (
     <div className="flex flex-col gap-4">
@@ -42,7 +53,7 @@ export default function DashboardPage() {
       </div>
 
       <div className={cn('grid gap-4 md:gap-6', layout.value)}>
-        {mockCameras.slice(0, layout.count).map((camera) => (
+        {cameras.slice(0, layout.count).map((camera) => (
           <Card key={camera.id} className="overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-card/50">
                 <div className="grid gap-1.5">

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, type MouseEvent } from 'react';
+import { useState, useRef, type MouseEvent, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockCameras } from '@/lib/data';
+import { type Camera } from '@/lib/data';
+import { getCameras } from '@/lib/db';
 import Image from 'next/image';
 import { Bot, Trash2, Milestone, Footprints, AlertTriangle, Save, Bell } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from '@/components/ui/toast';
+
 
 type Zone = { id: number; x: number; y: number; width: number; height: number };
 
@@ -106,8 +109,20 @@ function AnalyticsCanvas() {
 }
 
 export default function AnalyticsPage() {
-    const [selectedCameraId, setSelectedCameraId] = useState(mockCameras[0].id);
+    const [cameras, setCameras] = useState<Camera[]>([]);
+    const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>();
     const { toast } = useToast();
+
+    useEffect(() => {
+        async function loadCameras() {
+            const dbCameras = await getCameras();
+            setCameras(dbCameras);
+            if (dbCameras.length > 0) {
+                setSelectedCameraId(dbCameras[0].id);
+            }
+        }
+        loadCameras();
+    }, []);
 
     const handleSaveChanges = () => {
         toast({
@@ -146,7 +161,7 @@ export default function AnalyticsPage() {
                                     <SelectValue placeholder="Select a camera" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {mockCameras.map(camera => (
+                                    {cameras.map(camera => (
                                         <SelectItem key={camera.id} value={camera.id}>
                                             {camera.name}
                                         </SelectItem>

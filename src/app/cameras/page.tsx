@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Wifi, Loader2 } from 'lucide-react';
-import { mockCameras, type Camera } from '@/lib/data';
+import { type Camera } from '@/lib/data';
+import { getCameras, addCamera } from '@/lib/db';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,9 +42,17 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
 export default function CamerasPage() {
-  const [cameras, setCameras] = useState<Camera[]>(mockCameras);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    async function loadCameras() {
+        const dbCameras = await getCameras();
+        setCameras(dbCameras);
+    }
+    loadCameras();
+  }, []);
 
   const handleDiscover = () => {
     setIsDiscovering(true);
@@ -52,18 +61,42 @@ export default function CamerasPage() {
         description: 'Scanning the local network for ONVIF-compatible devices.',
     });
     setTimeout(() => {
-      const newCameras: Camera[] = [
-        { id: 'cam-9', name: 'Reception', status: 'online', ip: '192.168.1.110', location: 'Ground Floor' },
-        { id: 'cam-10', name: 'Meeting Room', status: 'online', ip: '192.168.1.111', location: 'Second Floor' },
-      ];
-      setCameras(prev => [...prev.filter(c => !newCameras.some(nc => nc.ip === c.ip)), ...newCameras]);
+      // This would be a call to a backend service in a real app
+      // For now, we'll just show a toast.
       setIsDiscovering(false);
       toast({
         title: 'Discovery Complete',
-        description: `Found ${newCameras.length} new cameras.`,
+        description: `No new cameras found.`,
       });
     }, 2500);
   };
+  
+  const handleAddCamera = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const newCamera = {
+        name: formData.get('name') as string,
+        ip: formData.get('ip') as string,
+        location: 'Custom',
+    };
+
+    if (newCamera.name && newCamera.ip) {
+        await addCamera(newCamera);
+        const dbCameras = await getCameras();
+        setCameras(dbCameras);
+        toast({
+            title: 'Camera Added',
+            description: `${newCamera.name} has been added successfully.`,
+        });
+        // Close dialog - this requires state management for the dialog
+    } else {
+         toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: `Please fill in all fields.`,
+        });
+    }
+  }
 
   return (
     <Card>
@@ -92,33 +125,35 @@ export default function CamerasPage() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Add Camera Manually</DialogTitle>
-                            <DialogDescription>
-                                Enter the details of your camera to add it to the system.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="name" className="text-right">Name</Label>
-                                <Input id="name" placeholder="Front Door Camera" className="col-span-3" />
+                        <form onSubmit={handleAddCamera}>
+                            <DialogHeader>
+                                <DialogTitle>Add Camera Manually</DialogTitle>
+                                <DialogDescription>
+                                    Enter the details of your camera to add it to the system.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="name" className="text-right">Name</Label>
+                                    <Input id="name" name="name" placeholder="Front Door Camera" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="ip" className="text-right">IP Address</Label>
+                                    <Input id="ip" name="ip" placeholder="192.168.1.200" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="username" className="text-right">Username</Label>
+                                    <Input id="username" name="username" placeholder="admin" className="col-span-3" />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="password" className="text-right">Password</Label>
+                                    <Input id="password" name="password" type="password" className="col-span-3" />
+                                </div>
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="ip" className="text-right">IP Address</Label>
-                                <Input id="ip" placeholder="192.168.1.200" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="username" className="text-right">Username</Label>
-                                <Input id="username" placeholder="admin" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="password" className="text-right">Password</Label>
-                                <Input id="password" type="password" className="col-span-3" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit">Add Camera</Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button type="submit">Add Camera</Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </div>

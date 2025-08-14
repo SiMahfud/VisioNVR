@@ -1,20 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon, Download, Camera, Play, Pause } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { mockCameras, mockMotionEvents } from '@/lib/data';
+import { type Camera, type MotionEvent } from '@/lib/data';
+import { getCameras, getMotionEvents } from '@/lib/db';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 
-function Timeline() {
+function Timeline({ motionEvents, date }: { motionEvents: MotionEvent[], date: Date }) {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   
   return (
@@ -26,13 +27,13 @@ function Timeline() {
           </div>
         ))}
       </div>
-       {mockMotionEvents.map(event => {
-            const startOfDay = new Date(event.startTime);
+       {motionEvents.map(event => {
+            const startOfDay = new Date(date);
             startOfDay.setHours(0, 0, 0, 0);
             const totalDaySeconds = 24 * 60 * 60;
             
-            const startSeconds = (event.startTime.getTime() - startOfDay.getTime()) / 1000;
-            const endSeconds = (event.endTime.getTime() - startOfDay.getTime()) / 1000;
+            const startSeconds = (new Date(event.startTime).getTime() - startOfDay.getTime()) / 1000;
+            const endSeconds = (new Date(event.endTime).getTime() - startOfDay.getTime()) / 1000;
             
             const left = (startSeconds / totalDaySeconds) * 100;
             const width = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
@@ -48,7 +49,7 @@ function Timeline() {
                         <PopoverContent>
                             <p className="font-semibold">Motion Detected</p>
                             <p className="text-sm text-muted-foreground">
-                                {format(event.startTime, 'HH:mm:ss')} - {format(event.endTime, 'HH:mm:ss')}
+                                {format(new Date(event.startTime), 'HH:mm:ss')} - {format(new Date(event.endTime), 'HH:mm:ss')}
                             </p>
                         </PopoverContent>
                     </Popover>
@@ -61,9 +62,33 @@ function Timeline() {
 
 
 export default function PlaybackPage() {
-  const [selectedCamera, setSelectedCamera] = useState(mockCameras[0]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<Camera | undefined>();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    async function loadCameras() {
+        const dbCameras = await getCameras();
+        setCameras(dbCameras);
+        if (dbCameras.length > 0) {
+            setSelectedCamera(dbCameras[0]);
+        }
+    }
+    loadCameras();
+  }, []);
+
+  useEffect(() => {
+    async function loadEvents() {
+        if (selectedCamera && date) {
+            const events = await getMotionEvents(selectedCamera.id, date);
+            setMotionEvents(events);
+        }
+    }
+    loadEvents();
+  }, [selectedCamera, date]);
+
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -73,7 +98,7 @@ export default function PlaybackPage() {
             <Image
                 src={`https://placehold.co/1280x720.png`}
                 data-ai-hint="security camera park"
-                alt={`Playback for ${selectedCamera.name}`}
+                alt={`Playback for ${selectedCamera?.name}`}
                 fill
                 className="object-contain"
             />
@@ -91,7 +116,7 @@ export default function PlaybackPage() {
                 <CardTitle className="font-headline">Timeline</CardTitle>
             </CardHeader>
             <CardContent>
-                <Timeline />
+                {date && <Timeline motionEvents={motionEvents} date={date} />}
             </CardContent>
         </Card>
       </div>
@@ -104,9 +129,9 @@ export default function PlaybackPage() {
                 <div>
                     <h3 className="text-sm font-medium mb-2">Select Camera</h3>
                      <Select
-                        value={selectedCamera.id}
+                        value={selectedCamera?.id}
                         onValueChange={(id) => {
-                            const cam = mockCameras.find(c => c.id === id);
+                            const cam = cameras.find(c => c.id === id);
                             if (cam) setSelectedCamera(cam);
                         }}
                     >
@@ -114,7 +139,7 @@ export default function PlaybackPage() {
                              <SelectValue placeholder="Select a camera..." />
                         </SelectTrigger>
                         <SelectContent>
-                            {mockCameras.map((camera) => (
+                            {cameras.map((camera) => (
                                 <SelectItem key={camera.id} value={camera.id}>
                                     <div className="flex items-center gap-2">
                                         <Camera className="h-4 w-4 text-muted-foreground" />
@@ -155,12 +180,12 @@ export default function PlaybackPage() {
           <CardContent>
             <ScrollArea className="h-72">
                 <div className="grid gap-4">
-                    {mockMotionEvents.map(event => (
+                    {motionEvents.map(event => (
                         <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
                             <Image src={event.thumbnail} alt="Motion event thumbnail" width={80} height={50} className="rounded-md" data-ai-hint="motion blur" />
                             <div>
-                                <p className="text-sm font-medium">{format(event.startTime, 'HH:mm:ss')}</p>
-                                <p className="text-xs text-muted-foreground">Duration: {format(new Date(event.endTime.getTime() - event.startTime.getTime()), 'm \'m\' ss \'s\'')}</p>
+                                <p className="text-sm font-medium">{format(new Date(event.startTime), 'HH:mm:ss')}</p>
+                                <p className="text-xs text-muted-foreground">Duration: {format(new Date(new Date(event.endTime).getTime() - new Date(event.startTime).getTime()), 'm \'m\' ss \'s\'')}</p>
                             </div>
                         </div>
                     ))}
