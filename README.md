@@ -4,12 +4,14 @@ Visionary NVR adalah Network Video Recorder (NVR) modern berbasis web yang diran
 
 ## Fitur
 
-- **Tampilan Multi-Kamera:** Lihat beberapa umpan kamera secara bersamaan dalam tata letak petak yang dapat disesuaikan.
-- **Pemutaran Timeline:** Tinjau rekaman yang direkam dengan mudah menggunakan timeline interaktif yang menyoroti peristiwa gerakan.
-- **Manajemen Kamera:** Temukan, tambah, dan kelola kamera Anda secara otomatis di jaringan Anda.
+- **Tampilan Multi-Kamera:** Lihat beberapa umpan kamera secara bersamaan dalam tata letak petak yang dapat disesuaikan, termasuk mode "Sorotan" dengan kamera utama yang besar dan thumbnail yang berputar.
+- **Pemutaran Timeline:** Tinjau rekaman yang direkam dengan mudah menggunakan timeline interaktif yang dapat di-zoom, digeser, dan diklik untuk melompat ke waktu tertentu, lengkap dengan kontrol kecepatan pemutaran.
+- **Manajemen Kamera:** Temukan, tambah, dan kelola kamera Anda secara otomatis di jaringan Anda dengan dukungan untuk detail spesifik ONVIF seperti URL RTSP dan mode perekaman (terus-menerus, terjadwal, deteksi gerakan).
 - **Analitik Video:** Siapkan zona deteksi intrusi dan deteksi persilangan garis untuk menerima peringatan cerdas (WIP).
 - **Berbasis Web:** Akses NVR Anda dari browser apa pun di jaringan lokal Anda.
 - **Basis Data Ringan:** Menggunakan SQLite untuk penyimpanan data yang mudah dan tanpa konfigurasi.
+- **Sistem Otentikasi:** Amankan akses ke NVR Anda dengan sistem login.
+- **Halaman Pengaturan:** Konfigurasikan profil pengguna Anda dan pengaturan aplikasi seperti interval rotasi kamera.
 
 ## Prasyarat
 
@@ -42,7 +44,7 @@ npm install
 
 ### 3. Jalankan Aplikasi
 
-Setelah dependensi diinstal, Anda dapat memulai server pengembangan. Ini akan menginisialisasi database untuk Anda (jika ini adalah pertama kalinya) dan memulai aplikasi.
+Setelah dependensi diinstal, Anda dapat memulai server pengembangan. Perintah ini akan secara otomatis menginisialisasi database SQLite untuk Anda (jika ini adalah pertama kalinya) dan memulai aplikasi.
 
 ```bash
 npm run dev
@@ -70,10 +72,11 @@ Sekarang Anda sudah masuk! Anda dapat menavigasi melalui berbagai halaman menggu
 - **Pemutaran Timeline:** Tinjau rekaman video yang lalu.
 - **Manajemen Kamera:** Tambah dan konfigurasikan kamera Anda.
 - **Analitik Video:** Atur peringatan cerdas.
+- **Pengaturan:** Kelola profil Anda dan pengaturan aplikasi.
 
 ## Kredensial Admin Default
 
 - **Nama Pengguna:** `admin`
 - **Kata Sandi:** `admin`
 
-Untuk alasan keamanan, disarankan untuk mengubah kata sandi default ini di versi aplikasi mendatang.
+Untuk alasan keamanan, disarankan untuk mengubah kata sandi default ini menggunakan halaman **Pengaturan** setelah Anda login untuk pertama kalinya.
