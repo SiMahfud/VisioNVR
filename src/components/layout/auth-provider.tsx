@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { verifyUser } from '@/lib/db';
-import { User } from '@/lib/data';
+import { type User } from '@/lib/db';
 import { AppLayout } from './app-layout';
 
 // Helper functions for cookie management

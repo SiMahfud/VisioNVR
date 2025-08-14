@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { type Camera } from '@/lib/data';
+import { type Camera } from '@/lib/db';
 import { getCameras } from '@/lib/db';
 import { Maximize, VideoOff, LayoutGrid, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';

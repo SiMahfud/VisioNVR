@@ -2,7 +2,30 @@
 
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
-import { Camera, MotionEvent, User } from './data';
+
+export type Camera = {
+  id: string;
+  name: string;
+  status: 'online' | 'offline';
+  ip: string;
+  location: string;
+};
+
+export type User = {
+    id: number;
+    username: string;
+    password?: string; // Password should not be sent to client
+    name: string;
+}
+
+export type MotionEvent = {
+  id: string;
+  cameraId: string;
+  startTime: Date;
+  endTime: Date;
+  thumbnail: string;
+};
+
 
 async function getDb() {
   const db = await open({

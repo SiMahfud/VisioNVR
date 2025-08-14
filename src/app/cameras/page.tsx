@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2 } from 'lucide-react';
-import { type Camera } from '@/lib/data';
+import { type Camera } from '@/lib/db';
 import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
 import {
   DropdownMenu,
@@ -45,6 +45,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

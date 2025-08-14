@@ -4,7 +4,7 @@ import { useState, useRef, type MouseEvent, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type Camera } from '@/lib/data';
+import { type Camera } from '@/lib/db';
 import { getCameras } from '@/lib/db';
 import Image from 'next/image';
 import { Bot, Trash2, Milestone, Footprints, AlertTriangle, Save, Bell } from 'lucide-react';

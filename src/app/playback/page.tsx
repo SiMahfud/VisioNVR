@@ -7,7 +7,7 @@ import { Calendar as CalendarIcon, Download, Camera, Play, Pause } from 'lucide-
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { type Camera, type MotionEvent } from '@/lib/data';
+import { type Camera, type MotionEvent } from '@/lib/db';
 import { getCameras, getMotionEvents } from '@/lib/db';
 import { format } from 'date-fns';
 import Image from 'next/image';
