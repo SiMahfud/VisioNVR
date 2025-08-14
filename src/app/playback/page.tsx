@@ -224,6 +224,8 @@ export default function PlaybackPage() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackSpeeds = [0.5, 1, 2, 4];
   const [playbackTime, setPlaybackTime] = useState(new Date());
+  const [currentEventImage, setCurrentEventImage] = useState<string | null>(null);
+
 
   useEffect(() => {
     async function loadCameras() {
@@ -241,6 +243,7 @@ export default function PlaybackPage() {
         if (selectedCamera && date) {
             const events = await getMotionEvents(selectedCamera.id, date);
             setMotionEvents(events);
+            setCurrentEventImage(null);
             // Set initial playback time to the start of the day or first event
             const newPlaybackTime = new Date(date);
             newPlaybackTime.setHours(0,0,0,0);
@@ -252,7 +255,11 @@ export default function PlaybackPage() {
   
   const handleSetPlaybackTime = (newTime: Date) => {
     setPlaybackTime(newTime);
-    // Here you would also seek the video player to the new time
+  };
+
+  const handleEventClick = (event: MotionEvent) => {
+    handleSetPlaybackTime(new Date(event.startTime));
+    setCurrentEventImage(event.thumbnail);
   };
 
 
@@ -260,14 +267,20 @@ export default function PlaybackPage() {
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2 flex flex-col gap-6">
         <Card>
-          <CardContent className="p-0 aspect-video relative bg-black">
-            <Image
-                src={`https://placehold.co/1280x720.png`}
-                data-ai-hint="security camera park"
-                alt={`Playback for ${selectedCamera?.name}`}
-                fill
-                className="object-contain"
-            />
+          <CardContent className="p-0 aspect-video relative bg-black flex items-center justify-center">
+            {currentEventImage ? (
+                 <Image
+                    src={currentEventImage}
+                    alt={`Playback for ${selectedCamera?.name}`}
+                    fill
+                    className="object-contain"
+                    data-ai-hint="motion blur"
+                />
+            ) : (
+                <div className="text-center text-muted-foreground">
+                    <p>Select a motion event to view playback</p>
+                </div>
+            )}
              <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded-md text-sm font-mono">
                 {format(playbackTime, 'yyyy-MM-dd HH:mm:ss')}
             </div>
@@ -375,7 +388,7 @@ export default function PlaybackPage() {
             <ScrollArea className="h-72">
                 <div className="grid gap-4">
                     {motionEvents.map(event => (
-                        <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => handleSetPlaybackTime(new Date(event.startTime))}>
+                        <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => handleEventClick(event)}>
                             <Image src={event.thumbnail} alt="Motion event thumbnail" width={80} height={50} className="rounded-md" data-ai-hint="motion blur" />
                             <div>
                                 <p className="text-sm font-medium">{format(new Date(event.startTime), 'HH:mm:ss')}</p>
@@ -396,3 +409,4 @@ export default function PlaybackPage() {
     </div>
   );
 }
+
