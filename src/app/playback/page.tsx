@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Download, Camera, Play, Pause, ChevronsRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Camera, Play, Pause, ChevronsRight, ZoomIn, ZoomOut, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -15,50 +15,202 @@ import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
-function Timeline({ motionEvents, date }: { motionEvents: MotionEvent[], date: Date }) {
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+const MIN_ZOOM = 1; // 24-hour view
+const MAX_ZOOM = 48; // 30-minute view
+const SECONDS_IN_DAY = 24 * 60 * 60;
+
+function Timeline({ 
+    motionEvents, 
+    date,
+    playbackTime,
+    setPlaybackTime
+}: { 
+    motionEvents: MotionEvent[], 
+    date: Date,
+    playbackTime: Date,
+    setPlaybackTime: (date: Date) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1); // 1 = 24h, 2 = 12h, 4 = 6h, etc.
+  const [panOffset, setPanOffset] = useState(0); // in pixels
+  const [isPanning, setIsPanning] = useState(false);
+  const [hoverTime, setHoverTime] = useState<Date | null>(null);
+
+  const getTimelineWidth = () => containerRef.current?.offsetWidth ?? 0;
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const timelineWidth = getTimelineWidth();
+    const pointerX = e.nativeEvent.offsetX;
+    const oldZoom = zoom;
+    
+    // Determine new zoom level
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * (1 - e.deltaY / 100)));
+    setZoom(newZoom);
+
+    // Adjust pan offset to zoom in on the pointer
+    const newPanOffset = (panOffset + pointerX) * (newZoom / oldZoom) - pointerX;
+    setPanOffset(-Math.max(0, Math.min(timelineWidth * newZoom - timelineWidth, newPanOffset)));
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsPanning(true);
+    // Set cursor to grabbing
+    if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
+  };
   
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      const timelineWidth = getTimelineWidth();
+      setPanOffset(prev => -Math.max(0, Math.min(timelineWidth * zoom - timelineWidth, -(prev + e.movementX))));
+    }
+     // Calculate and set hover time
+    const rect = containerRef.current?.getBoundingClientRect();
+    if(rect) {
+        const x = e.clientX - rect.left;
+        const totalWidth = getTimelineWidth() * zoom;
+        const timeInSeconds = ((x - panOffset) / totalWidth) * SECONDS_IN_DAY;
+        
+        if (timeInSeconds >= 0 && timeInSeconds <= SECONDS_IN_DAY) {
+            const newHoverTime = new Date(date);
+            newHoverTime.setHours(0, 0, 0, 0);
+            newHoverTime.setSeconds(timeInSeconds);
+            setHoverTime(newHoverTime);
+        } else {
+            setHoverTime(null);
+        }
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    setIsPanning(false);
+    if (containerRef.current) containerRef.current.style.cursor = 'pointer';
+
+    // Jump to time on click (if not a drag)
+    if (e.movementX === 0 && e.movementY === 0) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if(rect) {
+            const x = e.clientX - rect.left;
+            const totalWidth = getTimelineWidth() * zoom;
+            const timeInSeconds = ((x - panOffset) / totalWidth) * SECONDS_IN_DAY;
+
+            if (timeInSeconds >= 0 && timeInSeconds <= SECONDS_IN_DAY) {
+                const newTime = new Date(date);
+                newTime.setHours(0, 0, 0, 0);
+                newTime.setSeconds(timeInSeconds);
+                setPlaybackTime(newTime);
+            }
+        }
+    }
+  };
+  
+  const handleMouseLeave = () => {
+    setIsPanning(false);
+    setHoverTime(null);
+    if (containerRef.current) containerRef.current.style.cursor = 'pointer';
+  };
+
+
+  const renderTimeGrid = () => {
+    const totalWidth = getTimelineWidth() * zoom;
+    const hours = 24 / zoom;
+    let increment = 1; // hours
+    let subIncrement = 15; // minutes
+
+    if (zoom > 4) increment = 0.5; // 30 mins
+    if (zoom > 8) increment = 0.25; // 15 mins
+    if (zoom > 16) { increment = 5 / 60; subIncrement = 1; } // 5 mins
+    if (zoom > 32) { increment = 1 / 60; subIncrement = 0.25; } // 1 min
+
+    const numMarkers = 24 / increment;
+    
+    return Array.from({ length: numMarkers }).map((_, i) => {
+        const markerTime = i * increment * 3600; // in seconds
+        const xPos = (markerTime / SECONDS_IN_DAY) * totalWidth;
+        const isHour = i * increment % 1 === 0;
+
+        return (
+            <div key={i} className="absolute h-full" style={{ left: `${panOffset + xPos}px` }}>
+                <div className={cn("w-px h-full", isHour ? 'bg-border' : 'bg-border/50')}></div>
+                <span className="absolute top-1 left-1 text-xs text-muted-foreground">
+                    {format(new Date(date).setHours(0,0,markerTime), 'HH:mm')}
+                </span>
+            </div>
+        );
+    });
+  };
+
+  const getSecondsFromStartOfDay = (d: Date) => {
+    const startOfDay = new Date(d);
+    startOfDay.setHours(0, 0, 0, 0);
+    return (d.getTime() - startOfDay.getTime()) / 1000;
+  }
+
   return (
-    <div className="relative w-full h-20 bg-muted/20 rounded-lg overflow-hidden">
-      <div className="flex h-full">
-        {hours.map(hour => (
-          <div key={hour} className="flex-1 border-r border-border/50 relative">
-            <span className="absolute top-1 left-1 text-xs text-muted-foreground">{hour.toString().padStart(2, '0')}:00</span>
-          </div>
-        ))}
-      </div>
-       {motionEvents.map(event => {
-            const startOfDay = new Date(date);
-            startOfDay.setHours(0, 0, 0, 0);
-            const totalDaySeconds = 24 * 60 * 60;
+    <TooltipProvider>
+    <div
+      ref={containerRef}
+      className="relative w-full h-20 bg-muted/20 rounded-lg overflow-hidden cursor-pointer"
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className="relative w-full h-full">
+         {renderTimeGrid()}
+
+         {motionEvents.map(event => {
+            const totalWidth = getTimelineWidth() * zoom;
+            const startSeconds = getSecondsFromStartOfDay(new Date(event.startTime));
+            const endSeconds = getSecondsFromStartOfDay(new Date(event.endTime));
             
-            const startSeconds = (new Date(event.startTime).getTime() - startOfDay.getTime()) / 1000;
-            const endSeconds = (new Date(event.endTime).getTime() - startOfDay.getTime()) / 1000;
-            
-            const left = (startSeconds / totalDaySeconds) * 100;
-            const width = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
+            const left = panOffset + (startSeconds / SECONDS_IN_DAY) * totalWidth;
+            const width = ((endSeconds - startSeconds) / SECONDS_IN_DAY) * totalWidth;
 
             return (
-                 <div
-                    key={event.id}
-                    className="absolute bottom-0 h-2/3 bg-primary/70 hover:bg-primary rounded-sm transition-colors cursor-pointer"
-                    style={{ left: `${left}%`, width: `${Math.max(width, 0.2)}%` }}
-                 >
-                    <Popover>
-                        <PopoverTrigger className='w-full h-full' />
-                        <PopoverContent>
-                            <p className="font-semibold">Motion Detected</p>
-                            <p className="text-sm text-muted-foreground">
-                                {format(new Date(event.startTime), 'HH:mm:ss')} - {format(new Date(event.endTime), 'HH:mm:ss')}
-                            </p>
-                        </PopoverContent>
-                    </Popover>
-                 </div>
+                 <Tooltip key={event.id} delayDuration={0}>
+                    <TooltipTrigger asChild>
+                         <div
+                            className="absolute bottom-0 h-2/3 bg-primary/70 hover:bg-primary rounded-sm transition-colors"
+                            style={{ left: `${left}px`, width: `${Math.max(width, 2)}px` }}
+                         />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p className="font-semibold">Motion Detected</p>
+                        <p className="text-sm text-muted-foreground">
+                            {format(new Date(event.startTime), 'HH:mm:ss')} - {format(new Date(event.endTime), 'HH:mm:ss')}
+                        </p>
+                    </TooltipContent>
+                </Tooltip>
             )
         })}
+
+        {/* Playback Time Indicator */}
+        <div 
+            className="absolute top-0 h-full w-0.5 bg-red-500 z-10 pointer-events-none"
+            style={{ left: `${panOffset + (getSecondsFromStartOfDay(playbackTime) / SECONDS_IN_DAY) * getTimelineWidth() * zoom}px`}}
+        >
+            <div className="absolute -top-2 -left-2.5 w-5 h-5 bg-red-500 rounded-full border-2 border-background"></div>
+        </div>
+
+        {/* Hover Time Indicator */}
+        {hoverTime && (
+             <div 
+                className="absolute top-0 h-full w-px bg-muted-foreground/50 z-20 pointer-events-none"
+                style={{ left: `${panOffset + (getSecondsFromStartOfDay(hoverTime) / SECONDS_IN_DAY) * getTimelineWidth() * zoom}px`}}
+            >
+                 <div className="absolute top-full mt-1 -translate-x-1/2 bg-foreground text-background text-xs px-2 py-1 rounded">
+                    {format(hoverTime, 'HH:mm:ss')}
+                </div>
+            </div>
+        )}
+      </div>
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -71,6 +223,7 @@ export default function PlaybackPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackSpeeds = [0.5, 1, 2, 4];
+  const [playbackTime, setPlaybackTime] = useState(new Date());
 
   useEffect(() => {
     async function loadCameras() {
@@ -88,10 +241,19 @@ export default function PlaybackPage() {
         if (selectedCamera && date) {
             const events = await getMotionEvents(selectedCamera.id, date);
             setMotionEvents(events);
+            // Set initial playback time to the start of the day or first event
+            const newPlaybackTime = new Date(date);
+            newPlaybackTime.setHours(0,0,0,0);
+            setPlaybackTime(newPlaybackTime);
         }
     }
     loadEvents();
   }, [selectedCamera, date]);
+  
+  const handleSetPlaybackTime = (newTime: Date) => {
+    setPlaybackTime(newTime);
+    // Here you would also seek the video player to the new time
+  };
 
 
   return (
@@ -106,6 +268,9 @@ export default function PlaybackPage() {
                 fill
                 className="object-contain"
             />
+             <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded-md text-sm font-mono">
+                {format(playbackTime, 'yyyy-MM-dd HH:mm:ss')}
+            </div>
             <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
               <div className="flex items-center justify-center gap-4">
                   <Button variant="ghost" size="icon" onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:bg-white/20 hover:text-white">
@@ -131,10 +296,21 @@ export default function PlaybackPage() {
         </Card>
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">Timeline</CardTitle>
+                <div className="flex items-center justify-between">
+                    <CardTitle className="font-headline">Timeline</CardTitle>
+                    <div className="flex items-center gap-2">
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Scroll to zoom, drag to pan</span>
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
-                {date && <Timeline motionEvents={motionEvents} date={date} />}
+                {date && <Timeline 
+                    motionEvents={motionEvents} 
+                    date={date} 
+                    playbackTime={playbackTime}
+                    setPlaybackTime={handleSetPlaybackTime}
+                />}
             </CardContent>
         </Card>
       </div>
@@ -199,7 +375,7 @@ export default function PlaybackPage() {
             <ScrollArea className="h-72">
                 <div className="grid gap-4">
                     {motionEvents.map(event => (
-                        <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
+                        <div key={event.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 cursor-pointer" onClick={() => handleSetPlaybackTime(new Date(event.startTime))}>
                             <Image src={event.thumbnail} alt="Motion event thumbnail" width={80} height={50} className="rounded-md" data-ai-hint="motion blur" />
                             <div>
                                 <p className="text-sm font-medium">{format(new Date(event.startTime), 'HH:mm:ss')}</p>
@@ -220,4 +396,3 @@ export default function PlaybackPage() {
     </div>
   );
 }
-
