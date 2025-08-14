@@ -434,7 +434,6 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
 
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const { toast } = useToast();
 
   const fetchCameras = async () => {
     const dbCameras = await getCameras();
@@ -459,41 +458,6 @@ export default function CamerasPage() {
   const handleDeleteCamera = async (id: string) => {
     await deleteCamera(id);
     await fetchCameras();
-  };
-
-  const handleToggleRecording = async (camera: Camera) => {
-    const isRecording = camera.status === 'recording';
-    const endpoint = isRecording ? 'stop' : 'start';
-    const newStatus = isRecording ? 'online' : 'recording';
-    
-    try {
-      const response = await fetch(`/api/record/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cameraId: camera.id }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to toggle recording');
-      }
-
-      await updateCameraStatus(camera.id, newStatus);
-      await fetchCameras();
-      
-      toast({
-        title: `Recording ${isRecording ? 'Stopped' : 'Started'}`,
-        description: `Recording for ${camera.name} has been ${isRecording ? 'stopped' : 'started'}.`,
-      });
-
-    } catch (error) {
-      console.error('Failed to toggle recording:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: `Could not ${endpoint} recording. Is ffmpeg running on the server?`,
-      });
-    }
   };
 
   const getStatusVariant = (status: Camera['status']) => {
@@ -581,20 +545,6 @@ export default function CamerasPage() {
                        <CameraDialog camera={camera} onSave={handleSaveCamera}>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
                        </CameraDialog>
-                       <DropdownMenuItem 
-                          onClick={() => handleToggleRecording(camera)}
-                          disabled={!camera.enabled || camera.status === 'offline'}
-                        >
-                          {camera.status === 'recording' ? (
-                            <>
-                              <Dot className="mr-2 h-4 w-4 text-red-500 animate-pulse" /> Stop Recording
-                            </>
-                          ) : (
-                             <>
-                              <Dot className="mr-2 h-4 w-4 text-muted-foreground" /> Start Recording
-                            </>
-                          )}
-                       </DropdownMenuItem>
                        <DropdownMenuSeparator />
                        <DeleteCameraAlert camera={camera} onDelete={handleDeleteCamera}>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:bg-destructive/20 focus:text-destructive">
