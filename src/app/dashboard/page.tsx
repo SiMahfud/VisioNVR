@@ -110,6 +110,8 @@ export default function DashboardPage() {
     if (highlightMode && cameras.length > 1) {
       const otherCameras = cameras.filter(c => c.id !== highlightedCamera?.id);
       setTickerCameras(otherCameras);
+      
+      if (otherCameras.length === 0) return;
 
       const intervalId = setInterval(() => {
         setTickerIndex(prev => (prev + 1) % otherCameras.length);
@@ -139,7 +141,20 @@ export default function DashboardPage() {
     }
   };
   
-  const visibleTickerCameras = tickerCameras.slice(tickerIndex, tickerIndex + 4).concat(tickerCameras.slice(0, Math.max(0, (tickerIndex + 4) - tickerCameras.length)));
+  const getVisibleTickerCameras = () => {
+    if (!tickerCameras.length) return [];
+    const visible: Camera[] = [];
+    for (let i = 0; i < 4; i++) {
+        const index = (tickerIndex + i) % tickerCameras.length;
+        if (visible.length < tickerCameras.length) {
+            visible.push(tickerCameras[index]);
+        }
+    }
+    // Remove duplicates if the number of cameras is less than 4
+    return [...new Map(visible.map(item => [item.id, item])).values()];
+  }
+  
+  const visibleTickerCameras = getVisibleTickerCameras();
 
   return (
     <div className="flex flex-col gap-4">
