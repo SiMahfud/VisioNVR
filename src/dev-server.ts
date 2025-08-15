@@ -7,7 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
 import type { ChildProcess } from 'child_process';
 const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev });
+const app = next({ dev: true });
 const handle = app.getRequestHandler();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 9002;
 
