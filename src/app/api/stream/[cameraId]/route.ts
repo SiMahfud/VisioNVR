@@ -81,7 +81,7 @@ export async function POST(
   runningProcesses.set(cameraId, ffmpegProcess);
 
   ffmpegProcess.stderr.on('data', (data) => {
-      console.log(`[ffmpeg stderr] ${cameraId}: ${data.toString().trim()}`);
+      // console.log(`[ffmpeg stderr] ${cameraId}: ${data.toString().trim()}`);
   });
 
   ffmpegProcess.on('error', (err) => {
