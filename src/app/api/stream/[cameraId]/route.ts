@@ -61,7 +61,7 @@ export async function GET(
   } else {
     console.log(`Starting new ffmpeg process for ${rtspUrl}`);
 
-    const command = ffmpeg(rtspUrl)
+    const command = ffmpeg(rtspUrl, { logger: console })
       // Input options
       .inputOptions([
         '-rtsp_transport tcp', // Use TCP for more reliable connection
