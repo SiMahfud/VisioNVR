@@ -25,7 +25,7 @@ const layouts: Layout[] = [
 
 function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camera: Camera) => void }) {
   const streamId = camera.rtspUrl ? btoa(camera.rtspUrl) : '';
-  const canPlayStream = camera.status === 'online' && camera.rtspUrl;
+  const canPlayStream = camera.enabled && camera.rtspUrl;
 
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
@@ -49,7 +49,7 @@ function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camer
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
             <VideoOff className="h-12 w-12 text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Camera Offline</p>
+            <p className="mt-2 text-sm text-muted-foreground">Camera Offline or Disabled</p>
           </div>
         )}
       </CardContent>
@@ -77,11 +77,11 @@ export default function DashboardPage() {
           getAppSetting('dashboardLayout')
       ]);
       
-      const onlineCameras = dbCameras.filter(c => c.enabled);
-      setCameras(onlineCameras);
+      const enabledCameras = dbCameras.filter(c => c.enabled);
+      setCameras(enabledCameras);
 
-      if (onlineCameras.length > 0) {
-        setHighlightedCamera(onlineCameras[0]);
+      if (enabledCameras.length > 0) {
+        setHighlightedCamera(enabledCameras[0]);
       }
       
       if (intervalSetting) {
@@ -190,7 +190,7 @@ export default function DashboardPage() {
                 onClick={() => setHighlightedCamera(camera)}
                 >
                 <CardContent className="p-0 aspect-video relative bg-black">
-                   {camera.status === 'online' && camera.rtspUrl ? (
+                   {camera.enabled && camera.rtspUrl ? (
                       <VideoPlayer src={`/api/stream/${btoa(camera.rtspUrl)}`} />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
@@ -222,12 +222,12 @@ export default function DashboardPage() {
             </Button>
           </DialogHeader>
           <div className="h-full w-full bg-black flex items-center justify-center">
-             {fullscreenCamera && fullscreenCamera.status === 'online' && fullscreenCamera.rtspUrl ? (
+             {fullscreenCamera && fullscreenCamera.enabled && fullscreenCamera.rtspUrl ? (
                 <VideoPlayer src={`/api/stream/${btoa(fullscreenCamera.rtspUrl)}`} />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
                   <VideoOff className="h-24 w-24 text-muted-foreground" />
-                  <p className="mt-4 text-lg text-muted-foreground">Camera Offline</p>
+                  <p className="mt-4 text-lg text-muted-foreground">Camera Offline or Disabled</p>
                 </div>
               )}
           </div>
