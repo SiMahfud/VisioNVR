@@ -431,10 +431,6 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                                                 ({cam.profiles.map((p: any) => p.name).join(', ')})
                                             </span>
                                         )}
-
-                                    </div>
-                                     <div className="text-xs text-muted-foreground">
-                                        User: {cam.username || 'N/A'}, Pass: {cam.password ? 'Yes' : 'No'}
                                     </div>
                                 </TableCell>
                                 <TableCell>{cam.ip}</TableCell>

@@ -129,6 +129,8 @@ async function scanForDevices(ipAddresses: string[]): Promise<any[]> {
                 ip: device.address,
                 information: device.getInformation(),
                 profiles: device.getCurrentProfile(),
+                username: 'admin',
+                password: 'smart999',
             };
 
         } catch (initError) {
