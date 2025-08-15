@@ -36,6 +36,7 @@ export async function GET(
   let rtspUrl = '';
   try {
     // URL RTSP di-encode dalam parameter cameraId dari klien
+    // Menggunakan Buffer.from untuk mendekode base64 di lingkungan Node.js
     rtspUrl = Buffer.from(cameraId, 'base64').toString('utf8');
   } catch (err) {
     console.error(`Error decoding cameraId: ${cameraId}`, err);
@@ -114,6 +115,7 @@ export async function GET(
       });
   } catch (error) {
        console.error(`[ffmpeg] Could not read playlist file ${m3u8File}:`, error);
-       return new NextResponse('Could not read stream playlist.', { status: 500 });
+       // Jika file tidak ada setelah menunggu, kembalikan 404
+       return new NextResponse('Could not read stream playlist.', { status: 404 });
   }
 }
