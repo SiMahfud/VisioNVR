@@ -26,7 +26,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { cameraId: string } }
 ) {
-  const { cameraId } = params;
+  // Correctly access the cameraId from params
+  const cameraId = params.cameraId;
 
   // The RTSP URL is encoded in the cameraId parameter from the client
   const rtspUrl = atob(cameraId);
