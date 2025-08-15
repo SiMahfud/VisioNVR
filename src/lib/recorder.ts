@@ -1,11 +1,12 @@
+
 'use server';
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { getCameras, type Camera, updateCameraStatus } from './db';
+import { getCameras, type Camera, updateCameraStatus, getAppSetting } from './db';
 
-const MAX_STORAGE_BYTES = 500 * 1024 * 1024 * 1024; // 500 GB
+// const MAX_STORAGE_BYTES = 500 * 1024 * 1024 * 1024; // 500 GB
 const SEGMENT_DURATION_SECONDS = 300; // 5 menit
 const RETRY_INTERVAL_MS = 10000; // 10 detik
 const RECORDINGS_BASE_DIR = path.join(process.cwd(), 'recordings');
@@ -40,8 +41,11 @@ function getFolderSize(dir: string): number {
   return totalSize;
 }
 
-function cleanupOldFiles(maxSize: number) {
+async function cleanupOldFiles() {
   try {
+    const maxStorageGb = await getAppSetting('maxStorageGb');
+    const maxSize = (Number(maxStorageGb) || 500) * 1024 * 1024 * 1024;
+
     let totalSize = getFolderSize(RECORDINGS_BASE_DIR);
     if (totalSize <= maxSize) return;
 
@@ -139,7 +143,7 @@ async function startRecording(camera: Camera) {
 
     if(msg.includes("Opening '") && msg.includes(".mp4' for writing")) {
        console.log(`[${camera.name}] New segment created. Checking storage...`);
-       cleanupOldFiles(MAX_STORAGE_BYTES);
+       cleanupOldFiles();
     }
   });
 
@@ -190,7 +194,7 @@ export async function startAllRecorders() {
   }
 
   // Periodically check storage, e.g., every hour
-  setInterval(() => cleanupOldFiles(MAX_STORAGE_BYTES), 60 * 60 * 1000);
+  setInterval(() => cleanupOldFiles(), 60 * 60 * 1000);
 }
 
 // --- Status and Control ---

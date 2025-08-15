@@ -1,3 +1,4 @@
+
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import fs from 'fs';
@@ -164,11 +165,10 @@ async function initializeDB() {
     await db.run('INSERT INTO users (username, password, name) VALUES (?, ?, ?)', 'admin', 'admin', 'Admin User');
   }
 
-  const settingsCount = await db.get('SELECT COUNT(*) as count FROM app_settings');
-    if (settingsCount.count === 0) {
-        console.log('Seeding default app settings...');
-        await db.run('INSERT INTO app_settings (key, value) VALUES (?, ?)', 'highlightInterval', '3');
-    }
+  // Seed default settings if they don't exist
+  await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", 'highlightInterval', '3');
+  await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", 'maxStorageGb', '500');
+  await db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", 'dashboardLayout', JSON.stringify({ name: '2x2', value: 'grid-cols-2', count: 4 }));
 
 
   console.log('Database initialization complete.');

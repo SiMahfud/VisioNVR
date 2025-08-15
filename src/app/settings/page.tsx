@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { type User, updateUser, getAppSetting, setAppSetting } from '@/lib/db';
-import { Settings, UserCircle, Save } from 'lucide-react';
+import { Settings, UserCircle, Save, HardDrive } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 
 function ProfileSettings({ user, onUpdate }: { user: User, onUpdate: (user: User) => void }) {
@@ -78,13 +80,21 @@ function ProfileSettings({ user, onUpdate }: { user: User, onUpdate: (user: User
 
 function AppSettings() {
     const [interval, setInterval] = useState('3');
+    const [maxStorage, setMaxStorage] = useState('500');
     const { toast } = useToast();
 
     useEffect(() => {
         async function loadSettings() {
-            const highlightInterval = await getAppSetting('highlightInterval');
+            const [highlightInterval, maxStorageGb] = await Promise.all([
+                getAppSetting('highlightInterval'),
+                getAppSetting('maxStorageGb')
+            ]);
+
             if (highlightInterval) {
                 setInterval(highlightInterval);
+            }
+            if (maxStorageGb) {
+                setMaxStorage(maxStorageGb);
             }
         }
         loadSettings();
@@ -93,7 +103,10 @@ function AppSettings() {
     const handleAppSettingsSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await setAppSetting('highlightInterval', interval);
+            await Promise.all([
+                setAppSetting('highlightInterval', interval),
+                setAppSetting('maxStorageGb', maxStorage),
+            ]);
             toast({ title: 'Settings Saved', description: 'Application settings have been updated.' });
         } catch (error) {
              toast({ variant: 'destructive', title: 'Error', description: 'Failed to save application settings.' });
@@ -110,11 +123,18 @@ function AppSettings() {
                 <CardDescription>Configure application-wide settings.</CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleAppSettingsSubmit} className="grid gap-4">
-                    <div className="grid gap-2 max-w-sm">
-                        <Label htmlFor="highlight-interval">Highlight View Rotation Interval (seconds)</Label>
-                        <Input id="highlight-interval" type="number" value={interval} onChange={(e) => setInterval(e.target.value)} min="1" required />
-                         <p className="text-xs text-muted-foreground">How often the small cameras should rotate in highlight view.</p>
+                <form onSubmit={handleAppSettingsSubmit} className="grid gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="highlight-interval">Highlight View Rotation Interval (seconds)</Label>
+                            <Input id="highlight-interval" type="number" value={interval} onChange={(e) => setInterval(e.target.value)} min="1" required />
+                            <p className="text-xs text-muted-foreground">How often the small cameras should rotate in highlight view.</p>
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="max-storage"><HardDrive className="inline h-4 w-4 mr-1" />Maximum Storage Size (GB)</Label>
+                            <Input id="max-storage" type="number" value={maxStorage} onChange={(e) => setMaxStorage(e.target.value)} min="1" required />
+                            <p className="text-xs text-muted-foreground">The recorder will delete the oldest files when storage exceeds this limit.</p>
+                        </div>
                     </div>
                     <Button type="submit" className="mt-2 w-fit">
                         <Save className="mr-2 h-4 w-4" /> Save Settings
@@ -127,13 +147,15 @@ function AppSettings() {
 
 export default function SettingsPage() {
     const { user, login } = useAuth();
-    const router = useRouter(); // Corrected: import and use useRouter
+    const router = useRouter(); 
     
-    // This is a bit of a hack to force a re-render of the layout when the user is updated
-    // to reflect the new name in the sidebar. A more robust solution might use a shared state management library.
-    const handleUserUpdate = (updatedUser: User) => {
-        // Re-login with old password to refresh the user context
-        login(updatedUser.username, 'admin'); // Assuming we can't get the password back
+    const handleUserUpdate = async (updatedUser: User) => {
+      // Re-login with old password to refresh the user context
+      // This is a workaround as we don't store the password in a retrievable way.
+      // A better solution might involve re-fetching the user from the DB without a full re-login.
+      // For this demo, we can just update the context directly.
+      const { refreshUser } = useAuth();
+      refreshUser(updatedUser);
     };
     
     if (!user) {
@@ -147,6 +169,3 @@ export default function SettingsPage() {
         </div>
     );
 }
-
-// Corrected: Import useRouter
-import { useRouter } from 'next/navigation';

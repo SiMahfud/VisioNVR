@@ -7,14 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { type Camera } from '@/lib/db';
-import { getCameras, getAppSetting } from '@/lib/db';
+import { getCameras, getAppSetting, setAppSetting } from '@/lib/db';
 import { Maximize, VideoOff, LayoutGrid, Check, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { VideoPlayer } from '@/components/video-player';
 
-const layouts = [
+type Layout = { name: string, value: string, count: number };
+
+const layouts: Layout[] = [
   { name: '1x1', value: 'grid-cols-1', count: 1 },
   { name: '2x2', value: 'grid-cols-2', count: 4 },
   { name: '3x3', value: 'grid-cols-3', count: 9 },
@@ -56,7 +58,7 @@ function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camer
 }
 
 export default function DashboardPage() {
-  const [layout, setLayout] = useState<typeof layouts[0] | {name: string, value: string, count: number}>(layouts[1]);
+  const [layout, setLayout] = useState<Layout>(layouts[1]);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [fullscreenCamera, setFullscreenCamera] = useState<Camera | null>(null);
 
@@ -69,9 +71,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
-      const [dbCameras, intervalSetting] = await Promise.all([
+      const [dbCameras, intervalSetting, savedLayout] = await Promise.all([
           getCameras(),
-          getAppSetting('highlightInterval')
+          getAppSetting('highlightInterval'),
+          getAppSetting('dashboardLayout')
       ]);
       
       const onlineCameras = dbCameras.filter(c => c.enabled);
@@ -83,6 +86,20 @@ export default function DashboardPage() {
       
       if (intervalSetting) {
           setHighlightInterval(Number(intervalSetting) * 1000);
+      }
+
+      if (savedLayout) {
+          try {
+              const parsedLayout = JSON.parse(savedLayout);
+              if (parsedLayout.name === "Highlight") {
+                  handleSetHighlightMode(false); // don't save to db on initial load
+              } else {
+                  setLayout(parsedLayout);
+              }
+          } catch(e) {
+              console.error("Could not parse saved layout", e);
+              setLayout(layouts[1]); // default to 2x2
+          }
       }
     }
     loadData();
@@ -101,16 +118,23 @@ export default function DashboardPage() {
     }
   }, [highlightMode, highlightedCamera, cameras, highlightInterval]);
 
-  const handleSetLayout = (l: typeof layouts[0] | {name: string, value: string, count: number}) => {
+  const handleSetLayout = (l: Layout, saveToDb = true) => {
     setLayout(l);
     setHighlightMode(false);
+    if(saveToDb) {
+        setAppSetting('dashboardLayout', JSON.stringify(l));
+    }
   }
 
-  const handleSetHighlightMode = () => {
+  const handleSetHighlightMode = (saveToDb = true) => {
+    const highlightLayout = { name: 'Highlight', value: 'highlight', count: 0};
     setHighlightMode(true);
-    setLayout({ name: 'Highlight', value: 'highlight', count: 0});
+    setLayout(highlightLayout);
     if (cameras.length > 0 && !highlightedCamera) {
       setHighlightedCamera(cameras[0]);
+    }
+    if (saveToDb) {
+        setAppSetting('dashboardLayout', JSON.stringify(highlightLayout));
     }
   };
   
@@ -123,7 +147,7 @@ export default function DashboardPage() {
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
               <LayoutGrid className="mr-2 h-4 w-4" />
-              <span>{layout.name === 'All' ? 'All Cameras' : layout.name === 'highlight' ? 'Highlight Mode' : `Grid: ${layout.name}`}</span>
+              <span>{layout.name === 'All' ? 'All Cameras' : layout.name === 'Highlight' ? 'Highlight Mode' : `Grid: ${layout.name}`}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -138,7 +162,7 @@ export default function DashboardPage() {
                 {layout.name === 'All' && <Check className="ml-auto h-4 w-4" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-             <DropdownMenuItem onSelect={handleSetHighlightMode}>
+             <DropdownMenuItem onSelect={() => handleSetHighlightMode()}>
                 <Star className="mr-2 h-4 w-4" />
                 Highlight Mode
                 {highlightMode && <Check className="ml-auto h-4 w-4" />}
@@ -183,7 +207,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className={cn('grid gap-4 md:gap-6', layout.value)}>
-          {cameras.slice(0, layout.count).map((camera) => (
+          {cameras.slice(0, layout.count === cameras.length ? layout.count : layout.count).map((camera) => (
             <CameraCard key={camera.id} camera={camera} onMaximize={setFullscreenCamera} />
           ))}
         </div>
