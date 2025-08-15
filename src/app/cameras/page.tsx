@@ -288,7 +288,7 @@ function PreviewDialog({ rtspUrl }: { rtspUrl: string | null }) {
 function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSave: (cam: Omit<Camera, 'id' | 'status'> | Omit<Camera, 'status'>) => Promise<void> }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
-  const [ipRangeInput, setIpRangeInput] = useState('192.168.1.1-192.168.1.254');
+  const [ipRangeInput, setIpRangeInput] = useState('192.168.16.0-192.168.23.254');
   const [foundCameras, setFoundCameras] = useState<any[]>([]);
   const { toast } = useToast();
 
@@ -337,7 +337,7 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
   const handleSaveScannedCamera = (cam: any) => {
     const rtspUri = cam.profiles?.[0]?.stream?.rtsp;
     setCameraDefaults({
-        name: `${cam.information.manufacturer} ${cam.information.model}`,
+        name: `${cam.information.Manufacturer} ${cam.information.Model}`,
         ip: cam.ip,
         rtspUrl: rtspUri || '',
     });
@@ -400,10 +400,10 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                         {foundCameras.map((cam, index) => (
                             <TableRow key={index}>
                                 <TableCell className="font-medium">
-                                    <div>{cam.information.manufacturer}</div>
-                                    <div className="text-xs text-muted-foreground">{cam.information.model}</div>
+                                    <div>{cam.information.Manufacturer}</div>
+                                    <div className="text-xs text-muted-foreground">{cam.information.Model}</div>
                                 </TableCell>
-                                <TableCell>{cam.ip}:{cam.port}</TableCell>
+                                <TableCell>{cam.xaddrs[0]}</TableCell>
                                 <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.[0]?.stream?.rtsp || 'N/A'}</TableCell>
                                 <TableCell className="text-right flex gap-2 justify-end">
                                     <PreviewDialog rtspUrl={cam.profiles?.[0]?.stream?.rtsp} />
