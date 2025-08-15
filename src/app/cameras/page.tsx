@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -287,8 +288,9 @@ function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null, cam: a
 // Preview Dialog Component
 function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
     const [isOpen, setIsOpen] = useState(false);
-    // The RTSP URL can be long and contain special characters, so btoa is a good way to encode it for the URL path.
-    const cameraId = rtspUrl ? btoa(rtspUrl) : ''; 
+    
+    // Encode the RTSP URL to be URL-safe for the API route
+    const cameraId = rtspUrl ? Buffer.from(rtspUrl, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_') : '';
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -305,7 +307,7 @@ function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="aspect-video bg-black rounded-md">
-                   {isOpen && rtspUrl && <VideoPlayer src={`/api/stream/${cameraId}`} />}
+                   {isOpen && rtspUrl && <VideoPlayer src={cameraId} />}
                 </div>
             </DialogContent>
         </Dialog>
