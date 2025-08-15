@@ -6,7 +6,7 @@ async function scanForDevices(): Promise<any[]> {
     try {
         // Use startProbe for discovery
         const devices = await startProbe(); // 5 second timeout
-
+        
         const detailedDevices = await Promise.all(devices.map(async (deviceInfo) => { // Renamed to deviceInfo
            try {
                // Create an OnvifDevice instance for each found device
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         // The user can optionally provide an IP range, but node-onvif-ts's discover
         // uses WS-Discovery which doesn't rely on IP ranges. We'll ignore the body
         // for now and use the library's discovery method.
-        // const { ipRange } = await request.json(); // We can ignore this for now.
+        const { ipRange } = await request.json();
 
         console.log("Starting ONVIF network discovery...");
         const foundCameras = await scanForDevices();
