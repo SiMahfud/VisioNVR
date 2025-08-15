@@ -404,9 +404,9 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                                     <div className="text-xs text-muted-foreground">{cam.information.Model}</div>
                                 </TableCell>
                                 <TableCell>{cam.ip}</TableCell>
-                                <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.[0]?.stream?.rtsp || 'N/A'}</TableCell>
+                                <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.stream?.rtsp || 'N/A'}</TableCell>
                                 <TableCell className="text-right flex gap-2 justify-end">
-                                    <PreviewDialog rtspUrl={cam.profiles?.[0]?.stream?.rtsp} />
+                                    <PreviewDialog rtspUrl={cam.profiles?.stream?.rtsp} />
                                     <Button size="sm" onClick={() => handleSaveScannedCamera(cam)}>Save</Button>
                                 </TableCell>
                             </TableRow>
