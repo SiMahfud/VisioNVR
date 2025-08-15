@@ -257,8 +257,31 @@ function DeleteCameraAlert({
     );
 }
 
+// Helper function to format RTSP URL with credentials
+function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null): string | undefined | null {
+  if (!rtspUrl) {
+    return rtspUrl;
+  }
+
+  try {
+    const url = new URL(rtspUrl);
+    // Check if user and password already exist
+    // For this request, we'll always override with the provided credentials
+    url.username = 'admin';
+    url.password = 'smart999';
+
+    return url.toString();
+  } catch (error) {
+    // If URL parsing fails, log the error and return the original URL
+    console.error('Error formatting RTSP URL with credentials:', error);
+    return rtspUrl;
+  }
+}
+
+
+
 // Preview Dialog Component
-function PreviewDialog({ rtspUrl }: { rtspUrl: string | null }) {
+function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
     const [isOpen, setIsOpen] = useState(false);
     const cameraId = btoa(rtspUrl ?? ''); // Create a temporary ID for the stream URL from the rtsp url
 
@@ -401,13 +424,35 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                             <TableRow key={index}>
                                 <TableCell className="font-medium">
                                     <div>{cam.information.Manufacturer}</div>
-                                    <div className="text-xs text-muted-foreground">{cam.information.Model}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        {cam.information.Model}
+                                        {cam.profiles?.length > 0 && (
+                                            <span className="ml-1">
+                                                ({cam.profiles.map((p: any) => p.name).join(', ')})
+                                            </span>
+                                        )}
+
+                                    </div>
+                                     <div className="text-xs text-muted-foreground">
+                                        User: {cam.username || 'N/A'}, Pass: {cam.password ? 'Yes' : 'No'}
+                                    </div>
                                 </TableCell>
                                 <TableCell>{cam.ip}</TableCell>
                                 <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.stream?.rtsp || 'N/A'}</TableCell>
                                 <TableCell className="text-right flex gap-2 justify-end">
-                                    <PreviewDialog rtspUrl={cam.profiles?.stream?.rtsp} />
-                                    <Button size="sm" onClick={() => handleSaveScannedCamera(cam)}>Save</Button>
+                                    {/* Format RTSP URL with credentials for the PreviewDialog */}
+                                    <PreviewDialog rtspUrl={formatRtspUrlWithCredentials(cam.profiles?.stream?.rtsp)} />
+                                    {/* Format RTSP URL with credentials before saving */}
+                                    <Button size="sm" onClick={() => handleSaveScannedCamera({
+                                        ...cam,
+                                        profiles: {
+                                            ...cam.profiles,
+                                            stream: {
+                                                ...cam.profiles?.stream,
+                                                rtsp: formatRtspUrlWithCredentials(cam.profiles?.stream?.rtsp)
+                                            }
+                                        }
+                                    })}>Save</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
