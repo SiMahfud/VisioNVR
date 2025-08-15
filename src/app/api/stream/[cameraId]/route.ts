@@ -60,13 +60,15 @@ export async function GET(
     }
     fs.mkdirSync(streamOutputDir, { recursive: true });
 
+    // Perubahan krusial: Hapus '-c:v copy' untuk memaksa transkode.
+    // Ini lebih andal meskipun membutuhkan lebih banyak CPU.
     const commandArgs = [
         '-rtsp_transport', 'tcp',
         '-fflags', 'nobuffer',
         '-flags', 'low_delay',
         '-i', rtspUrl,
         '-an', // No audio
-        '-c:v', 'copy', // Salin stream video tanpa re-encoding
+        // '-c:v', 'copy', // DIHAPUS: Biarkan ffmpeg melakukan transkode
         '-f', 'hls',
         '-hls_time', '2', // Durasi segmen HLS (detik)
         '-hls_list_size', '3', // Jumlah segmen dalam playlist
@@ -79,7 +81,8 @@ export async function GET(
     runningProcesses.set(cameraId, ffmpegProcess);
 
     ffmpegProcess.stderr.on('data', (data) => {
-        // console.log(`[ffmpeg stderr] ${cameraId}: ${data.toString().trim()}`);
+        // Log untuk debugging, bisa dikurangi jika sudah stabil
+        console.log(`[ffmpeg stderr] ${cameraId}: ${data.toString().trim()}`);
     });
 
     ffmpegProcess.on('error', (err) => {
