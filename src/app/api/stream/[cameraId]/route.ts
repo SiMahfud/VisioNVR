@@ -1,36 +1,45 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import ffmpeg from 'fluent-ffmpeg';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { pipeline } from 'stream';
-import { promisify } from 'util';
-import { Buffer } from 'buffer'; // Import Buffer
 
-const pipelineAsync = promisify(pipeline);
 // Set the path to the ffmpeg executable if it's not in the system's PATH.
-// This might be necessary in some deployment environments.
+// Ini mungkin diperlukan di beberapa lingkungan production.
+// import ffmpeg from 'fluent-ffmpeg';
 // ffmpeg.setFfmpegPath('/path/to/your/ffmpeg');
 
 const HLS_OUTPUT_DIR = path.join(process.cwd(), 'public', 'hls');
 
-// Ensure the HLS output directory exists
+// Pastikan direktori output HLS ada
 if (!fs.existsSync(HLS_OUTPUT_DIR)) {
   fs.mkdirSync(HLS_OUTPUT_DIR, { recursive: true });
 }
 
-// In-memory store to track running ffmpeg processes
-const runningProcesses = new Map<string, ffmpeg.FfmpegCommand>();
+// Penyimpanan dalam memori untuk melacak proses ffmpeg yang berjalan
+const runningProcesses = new Map<string, ChildProcessWithoutNullStreams>();
 
+async function waitForFile(filePath: string, timeout = 5000): Promise<boolean> {
+  const pollInterval = 500;
+  const endTime = Date.now() + timeout;
+  while (Date.now() < endTime) {
+    if (fs.existsSync(filePath)) {
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+  return false;
+}
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ cameraId: string }> }
+  { params }: { params: { cameraId: string } }
 ) {
-  const { cameraId } = await params;
+  const { cameraId } = params;
 
   let rtspUrl = '';
   try {
+    // URL RTSP di-encode dalam parameter cameraId dari klien
     rtspUrl = Buffer.from(cameraId, 'base64').toString('utf8');
   } catch (err) {
     return new NextResponse('Invalid camera ID encoding', { status: 400 });
@@ -41,93 +50,74 @@ export async function GET(
   }
 
   const streamOutputDir = path.join(HLS_OUTPUT_DIR, cameraId);
+  const m3u8File = path.join(streamOutputDir, 'stream.m3u8');
 
-  // Clean up old segments for this stream if they exist
-  if (fs.existsSync(streamOutputDir)) {
-    // Check if there is a running process first
-    if (runningProcesses.has(cameraId)) {
-        console.log(`HLS stream for ${cameraId} already running.`);
-    } else {
-        console.log(`Cleaning up old HLS files for ${cameraId}`);
+  // Jika proses sudah berjalan, langsung gunakan kembali
+  if (!runningProcesses.has(cameraId)) {
+    console.log(`Starting new ffmpeg process for ${rtspUrl}`);
+    
+    // Pastikan direktori stream bersih sebelum memulai
+    if (fs.existsSync(streamOutputDir)) {
         fs.rmSync(streamOutputDir, { recursive: true, force: true });
     }
-  }
-  
-  if (!fs.existsSync(streamOutputDir)) {
-      fs.mkdirSync(streamOutputDir, { recursive: true });
-  }
+    fs.mkdirSync(streamOutputDir, { recursive: true });
 
-  const m3u8File = path.join(streamOutputDir, 'stream.m3u8');
-  
-  // If the process is already running, just return the path
-  if (runningProcesses.has(cameraId)) {
-    console.log(`Re-using existing ffmpeg process for ${rtspUrl}`);
-  } else {
-    console.log(`Starting new ffmpeg process for ${rtspUrl}`);
+    const commandArgs = [
+        '-rtsp_transport', 'tcp',
+        '-fflags', 'nobuffer',
+        '-flags', 'low_delay',
+        '-i', rtspUrl,
+        '-an', // No audio
+        '-vcodec', 'libx264',
+        '-preset', 'veryfast',
+        '-tune', 'zerolatency',
+        '-crf', '28',
+        '-g', '30', // GOP size
+        '-hls_time', '2',
+        '-hls_list_size', '3',
+        '-hls_flags', 'delete_segments+program_date_time',
+        '-hls_segment_filename', path.join(streamOutputDir, 'segment_%03d.ts'),
+        m3u8File
+    ];
 
-    const command = ffmpeg(rtspUrl, { logger: console })
-      // Input options
-      .inputOptions([
-        '-rtsp_transport tcp', // Use TCP for more reliable connection
-        '-fflags nobuffer',
-        '-flags low_delay',
-      ])
-      // Video options
-      .noAudio() // We don't need audio for a security camera preview
-      .videoCodec('libx264')
-      .outputOptions([
-        '-preset veryfast',
-        '-tune zerolatency',
-        '-crf 28', // Constant Rate Factor (quality vs. size, lower is better quality)
-        '-g 30', // Group of Pictures (keyframe interval)
-      ])
-      // HLS options
-      .outputOptions([
-        '-hls_time 2', // 2-second segments
-        '-hls_list_size 3', // Keep 3 segments in the playlist
-        '-hls_flags delete_segments+program_date_time', // Delete old segments
-        '-hls_segment_filename', `${streamOutputDir}/segment_%03d.ts`
-      ])
-      .output(m3u8File)
-      .on('start', (commandLine) => {
-        console.log('FFmpeg started with command: ' + commandLine);
-        runningProcesses.set(cameraId, command);
-      })
-      .on('error', (err, stdout, stderr) => {
-        console.error('FFmpeg error:', err.message);
-        console.error('FFmpeg stderr:', stderr);
+    const command = spawn('ffmpeg', commandArgs, { detached: false });
+    runningProcesses.set(cameraId, command);
+
+    command.stdout.on('data', (data) => {
+        // stdout jarang digunakan, biasanya output di stderr
+    });
+
+    command.stderr.on('data', (data) => {
+        // Jangan membanjiri log, tetapi ini berguna untuk debugging
+        // console.log(`[ffmpeg stderr] ${cameraId}: ${data.toString()}`);
+    });
+
+    command.on('error', (err) => {
+        console.error(`[ffmpeg error] Failed to start process for ${cameraId}:`, err);
         runningProcesses.delete(cameraId);
-      })
-      .on('end', () => {
-        console.log('FFmpeg process finished.');
+    });
+
+    command.on('close', (code) => {
+        console.log(`[ffmpeg close] Process for ${cameraId} exited with code ${code}`);
         runningProcesses.delete(cameraId);
-         // Clean up files on exit
+        // Bersihkan file saat proses berhenti
         if (fs.existsSync(streamOutputDir)) {
-            fs.rmSync(streamOutputDir, { recursive: true, force: true });
+            // fs.rmSync(streamOutputDir, { recursive: true, force: true });
         }
-      });
-      
-    command.run();
+    });
+
+  } else {
+    console.log(`Re-using existing ffmpeg process for ${cameraId}`);
   }
 
-  // It can take a moment for the m3u8 file to be created.
-  // We'll wait for a short period before responding.
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(m3u8File)) {
-        break;
-    }
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-
-  if (!fs.existsSync(m3u8File)) {
+  // Tunggu hingga file m3u8 dibuat
+  const fileExists = await waitForFile(m3u8File);
+  if (!fileExists) {
+    console.error(`Timeout waiting for m3u8 file for stream: ${cameraId}`);
     return new NextResponse('Stream could not be started.', { status: 500 });
   }
 
-  // Instead of serving the file directly, we redirect to the public path.
-  // The Next.js dev server or a production static file server will handle serving it.
-  const playlistUrl = `/hls/${cameraId}/stream.m3u8`;
-  
-  // We need to return the playlist content, not redirect. HLS.js will fetch it.
+  // Sajikan konten playlist m3u8, bukan redirect
   try {
       const playlistContent = fs.readFileSync(m3u8File, 'utf-8');
       return new NextResponse(playlistContent, {
@@ -138,11 +128,7 @@ export async function GET(
         },
       });
   } catch (error) {
+       console.error(`Could not read playlist file ${m3u8File}:`, error);
        return new NextResponse('Could not read playlist file.', { status: 500 });
   }
 }
-
-// We need a way to stop the ffmpeg process when the client disconnects.
-// The `NextRequest` doesn't directly expose a 'close' or 'abort' event.
-// For a production app, a more robust solution involving WebSockets or
-// a separate cleanup mechanism would be needed to stop orphaned ffmpeg processes.
