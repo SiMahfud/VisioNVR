@@ -57,6 +57,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { VideoPlayer } from '@/components/video-player';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import React, { useRef } from 'react';
+
 
 // Add/Edit Dialog Component
 function CameraDialog({ 
