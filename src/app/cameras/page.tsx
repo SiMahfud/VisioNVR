@@ -403,7 +403,7 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                                     <div>{cam.information.Manufacturer}</div>
                                     <div className="text-xs text-muted-foreground">{cam.information.Model}</div>
                                 </TableCell>
-                                <TableCell>{cam.xaddrs[0]}</TableCell>
+                                <TableCell>{cam.ip}</TableCell>
                                 <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.[0]?.stream?.rtsp || 'N/A'}</TableCell>
                                 <TableCell className="text-right flex gap-2 justify-end">
                                     <PreviewDialog rtspUrl={cam.profiles?.[0]?.stream?.rtsp} />
