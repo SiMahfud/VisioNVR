@@ -29,11 +29,15 @@ export async function GET(
 ) {
   const { cameraId } = await params;
 
-  // The RTSP URL is encoded in the cameraId parameter from the client
-  const rtspUrl = atob(cameraId);
+  let rtspUrl = '';
+  try {
+    rtspUrl = Buffer.from(cameraId, 'base64').toString('utf8');
+  } catch (err) {
+    return new NextResponse('Invalid camera ID encoding', { status: 400 });
+  }
 
-  if (!rtspUrl) {
-    return new NextResponse('Invalid camera ID', { status: 400 });
+  if (!rtspUrl.startsWith('rtsp://')) {
+    return new NextResponse('Invalid RTSP URL', { status: 400 });
   }
 
   const streamOutputDir = path.join(HLS_OUTPUT_DIR, cameraId);
