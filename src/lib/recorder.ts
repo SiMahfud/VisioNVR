@@ -198,7 +198,7 @@ export async function startAllRecorders() {
 }
 
 // --- Status and Control ---
-export function getRecorderStatus() {
+export async function getRecorderStatus() {
     const status: Record<string, boolean> = {};
     for (const cameraId of runningRecorders.keys()) {
         status[cameraId] = true;

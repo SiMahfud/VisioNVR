@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye, Dot, CircleDot } from 'lucide-react';
 import { type Camera } from '@/lib/db';
 import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
+import { getRecorderStatus } from '@/lib/recorder';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -443,9 +444,9 @@ export default function CamerasPage() {
   
   const fetchRecorderStatus = async () => {
       try {
-          const res = await fetch('/api/recorder/status');
-          const data = await res.json();
-          setRecorderStatus(data.status);
+          // Use the Server Action directly
+          const status = await getRecorderStatus();
+          setRecorderStatus(status);
       } catch (error) {
           console.error("Failed to fetch recorder status", error);
       }
