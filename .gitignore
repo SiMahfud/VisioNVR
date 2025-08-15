@@ -42,5 +42,6 @@ next-env.d.ts
 /visionary.db
 /visionary.db-journal
 /recordings/
+/records/
 /public/hls/
 visionary.db
