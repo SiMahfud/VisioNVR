@@ -1,63 +1,164 @@
 import { NextResponse } from 'next/server';
-import { OnvifDevice, startProbe } from 'node-onvif-ts'; // Import startProbe
+import { OnvifDevice } from 'node-onvif-ts'; // Import startProbe is no longer needed
+
+// Helper function to parse IP range string into an array of IP addresses
+function parseIpRange(ipRange: string): string[] {
+    const ipAddresses: string[] = [];
+
+    // Handle single IP address
+    if (!ipRange.includes('-') && !ipRange.includes('/')) {
+        // Basic validation for single IP format (you might want more robust validation)
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ipRange)) {
+            ipAddresses.push(ipRange);
+        } else {
+            console.error(`Invalid single IP address format: ${ipRange}`);
+        }
+        return ipAddresses;
+    }
+
+    // Handle IP range (e.g., "192.168.1.10-192.168.1.20" or "192.168.1.10-20")
+    if (ipRange.includes('-')) {
+        const [start, end] = ipRange.split('-');
+        const startParts = start.split('.').map(num => parseInt(num, 10));
+        const endPartsRaw = end.split('.').map(num => parseInt(num, 10));
+
+        // Jika end hanya 1 octet terakhir (e.g., "192.168.1.10-20")
+        if (endPartsRaw.length === 1 && startParts.length === 4) {
+            const [o1, o2, o3] = startParts.slice(0, 3);
+            const startLastOctet = startParts[3];
+            const endLastOctet = endPartsRaw[0];
+
+            if (
+                startLastOctet >= 0 && startLastOctet <= 255 &&
+                endLastOctet >= 0 && endLastOctet <= 255 &&
+                startLastOctet <= endLastOctet
+            ) {
+                for (let i = startLastOctet; i <= endLastOctet; i++) {
+                    ipAddresses.push(`${o1}.${o2}.${o3}.${i}`);
+                }
+            } else {
+                console.error(`Invalid IP range format: ${ipRange}`);
+            }
+
+        } else if (startParts.length === 4 && endPartsRaw.length === 4) {
+            // Handle full IP range (basic implementation)
+            if (startParts[0] === endPartsRaw[0] && startParts[1] === endPartsRaw[1] && startParts[2] === endPartsRaw[2]) {
+                const [o1, o2, o3] = startParts.slice(0, 3);
+                const startLastOctet = startParts[3];
+                const endLastOctet = endPartsRaw[3];
+
+                if (
+                    startLastOctet >= 0 && startLastOctet <= 255 &&
+                    endLastOctet >= 0 && endLastOctet <= 255 &&
+                    startLastOctet <= endLastOctet
+                ) {
+                    for (let i = startLastOctet; i <= endLastOctet; i++) {
+                        ipAddresses.push(`${o1}.${o2}.${o3}.${i}`);
+                    }
+                } else {
+                    console.error(`Invalid IP range format: ${ipRange}`);
+                }
+            } else {
+                console.error(`IP range across different subnets not supported: ${ipRange}`);
+            }
+        } else {
+            console.error(`Invalid IP range format: ${ipRange}`);
+        }
+        return ipAddresses;
+    }
+
+    // Handle CIDR notation (e.g., "192.168.1.0/24") - Basic implementation
+    if (ipRange.includes('/')) {
+        try {
+            const [ip, cidr] = ipRange.split('/');
+            const ipParts = ip.split('.').map(Number);
+            const cidrNum = parseInt(cidr, 10);
+
+            if (ipParts.length === 4 && cidrNum >= 0 && cidrNum <= 32) {
+                 // Calculate the network address
+                 const networkAddress = ipParts.map(part => part >>> 0); // Convert to unsigned 32-bit integer
+                 const networkMask = (~0) << (32 - cidrNum);
+
+                 // Calculate the first and last usable IP addresses
+                 const firstUsableIp = (networkAddress[0] << 24 | networkAddress[1] << 16 | networkAddress[2] << 8 | networkAddress[3]) & networkMask;
+                 const lastUsableIp = firstUsableIp | (~networkMask >>> 0); // Use unsigned right shift
+
+                 // Iterate through the IP addresses in the range
+                 for (let i = firstUsableIp; i <= lastUsableIp; i++) {
+                     // Exclude network and broadcast addresses for CIDR /24 or smaller
+                     if (cidrNum < 32 && (i === firstUsableIp || i === lastUsableIp)) {
+                         continue;
+                     }
+                     ipAddresses.push(`${(i >>> 24) & 0xFF}.${(i >>> 16) & 0xFF}.${(i >>> 8) & 0xFF}.${i & 0xFF}`);
+                 }
+            } else {
+                 console.error(`Invalid CIDR format: ${ipRange}`);
+            }
+        } catch (error) {
+            console.error(`Error parsing CIDR range ${ipRange}:`, error);
+        }
+        return ipAddresses;
+    }
+
+
+    console.error(`Unsupported IP range format: ${ipRange}`);
+    return ipAddresses;
+}
+
 
 // Main scanning function
-async function scanForDevices(): Promise<any[]> {
-    try {
-        // Use startProbe for discovery
-        const devices = await startProbe(); // 5 second timeout
-        
-        const detailedDevices = await Promise.all(devices.map(async (deviceInfo) => { // Renamed to deviceInfo
-           try {
-               // Create an OnvifDevice instance for each found device
-               const device = new OnvifDevice({
-                   xaddr: deviceInfo.xaddrs[0], // Use the xaddr from the discovery result
-                   user: 'admin',
-                   pass: 'smart999',
-               });
+async function scanForDevices(ipAddresses: string[]): Promise<any[]> { // Accepts array of IPs
+    const foundCameras: any[] = [];
+    const ONVIF_PORT = 80; // ONVIF default port
 
-               // The library might require credentials for init, but we can try without them first
-               // to get basic info.
-               await device.init();
+    for (const ip of ipAddresses) {
+        try {
+            console.log(`Attempting to connect to ONVIF device at ${ip}:${ONVIF_PORT}`);
+            const device = new OnvifDevice({
+                xaddr: `http://${ip}:${ONVIF_PORT}/onvif/device_service`,
+                user: 'admin',
+                pass: 'smart999',
+            });
 
-               return {
-                   ip: device.address,
-                   information: device.getInformation(),
-                   profiles: device.getCurrentProfile(),
-               };
-           } catch (initError) {
-                console.error(`Failed to initialize or get details for device at ${deviceInfo.xaddrs[0]}:`, initError); // Use deviceInfo.xaddrs[0]
-               // Return basic info if detailed info fails
-               return {
-                   ip: deviceInfo.xaddrs[0].split('/')[2].split(':')[0], // Extract IP from xaddr
-                   port: parseInt(deviceInfo.xaddrs[0].split(':')[2].split('/')[0]), // Extract port from xaddr
-                   information: {
-                       manufacturer: 'Unknown',
-                       model: 'Unknown (init failed)',
-                   },
-                   profiles: [],
-               };
-           }
-       }));
+            // Initialize the OnvifDevice object
+            await device.init();
+            console.log(`Successfully initialized device at ${ip}`);
 
-       console.log(`Scan complete. Found ${detailedDevices.length} cameras.`);
-               return detailedDevices;
-    } catch (error) {
-               console.error('Error during ONVIF discovery:', error);
-               throw error;
-           }
+            // Get device information and profiles if initialization is successful
+            foundCameras.push({
+                ip: device.address,
+                information: device.getInformation(),
+                profiles: device.getCurrentProfile(),
+            });
+
+        } catch (initError) {
+            // Ignore devices that fail to initialize
+            console.error(`Failed to initialize device at ${ip}:${ONVIF_PORT}:`, initError);
+        }
+    }
+
+    console.log(`Scan complete. Found ${foundCameras.length} cameras.`);
+    return foundCameras;
 }
 
 // API Route Handler
 export async function POST(request: Request) {
     try {
-        // The user can optionally provide an IP range, but node-onvif-ts's discover
-        // uses WS-Discovery which doesn't rely on IP ranges. We'll ignore the body
-        // for now and use the library's discovery method.
-        const { ipRange } = await request.json();
+        const { ipRange } = await request.json() as { ipRange: string }; // Expecting a string
 
-        console.log("Starting ONVIF network discovery...");
-        const foundCameras = await scanForDevices();
+        if (!ipRange) {
+            return NextResponse.json({ error: 'IP range is required' }, { status: 400 });
+        }
+
+        console.log(`Received request to scan IP range: ${ipRange}`);
+        const ipAddressesToScan = parseIpRange(ipRange);
+
+        if (ipAddressesToScan.length === 0) {
+             return NextResponse.json({ error: 'No valid IP addresses found in the provided range' }, { status: 400 });
+        }
+
+        console.log(`Scanning ${ipAddressesToScan.length} IP addresses...`);
+        const foundCameras = await scanForDevices(ipAddressesToScan);
 
         return NextResponse.json({ cameras: foundCameras }, { status: 200 });
     } catch (error) {

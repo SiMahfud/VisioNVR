@@ -366,7 +366,7 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                     name="ip-range"
                     value={ipRangeInput}
                     onChange={(e) => setIpRangeInput(e.target.value)}
-                    placeholder="e.g., 192.168.1.1-192.168.1.254"
+                    placeholder="e.g., 192.168.16.0-192.168.23.254"
                   />
               </div>
                 <Button type="submit" disabled={isDiscovering}>
