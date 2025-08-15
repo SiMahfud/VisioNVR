@@ -22,12 +22,12 @@ if (!fs.existsSync(HLS_OUTPUT_DIR)) {
 // In-memory store to track running ffmpeg processes
 const runningProcesses = new Map<string, ffmpeg.FfmpegCommand>();
 
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { cameraId: string } }
+  { params }: { params: Promise<{ cameraId: string }> }
 ) {
-  // Correctly access the cameraId from params
-  const cameraId = params.cameraId;
+  const { cameraId } = await params;
 
   // The RTSP URL is encoded in the cameraId parameter from the client
   const rtspUrl = atob(cameraId);
