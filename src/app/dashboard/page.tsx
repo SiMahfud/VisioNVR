@@ -110,11 +110,11 @@ export default function DashboardPage() {
       const otherCameras = cameras.filter(c => c.id !== highlightedCamera?.id);
       setTickerCameras(otherCameras);
 
-      const interval = setInterval(() => {
+      const intervalId = setInterval(() => {
         setTickerIndex(prev => (prev + 1) % otherCameras.length);
       }, highlightInterval); 
 
-      return () => clearInterval(interval);
+      return () => clearInterval(intervalId);
     }
   }, [highlightMode, highlightedCamera, cameras, highlightInterval]);
 

@@ -37,7 +37,8 @@ export function VideoPlayer({ src }: { src: string }) {
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.error('HLS Network Error, mencoba memuat ulang...', data);
-              hls.startLoad();
+              // Tambahkan mekanisme coba lagi yang lebih cerdas jika diperlukan
+              setTimeout(() => hls.loadSource(src), 2000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.error('HLS Media Error, mencoba memulihkan...', data);

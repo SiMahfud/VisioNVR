@@ -494,7 +494,6 @@ export default function CamerasPage() {
   
   const fetchRecorderStatus = async () => {
       try {
-          // Use the Server Action directly
           const status = await getRecorderStatus();
           setRecorderStatus(status);
       } catch (error) {
@@ -507,9 +506,8 @@ export default function CamerasPage() {
     fetchCameras();
     fetchRecorderStatus();
     const interval = setInterval(() => {
-        // No need to fetch cameras here, status is enough
         fetchRecorderStatus();
-    }, 5000); // Refresh recorder status every 5 seconds
+    }, 5000); 
     return () => clearInterval(interval);
   }, []);
 
