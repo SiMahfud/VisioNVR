@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
+import { pipeline } from 'stream';
+import { promisify } from 'util';
+import { Buffer } from 'buffer'; // Import Buffer
 
+const pipelineAsync = promisify(pipeline);
 // Set the path to the ffmpeg executable if it's not in the system's PATH.
 // This might be necessary in some deployment environments.
 // ffmpeg.setFfmpegPath('/path/to/your/ffmpeg');

@@ -81,6 +81,9 @@ function CameraDialog({
   const isOpen = controlledIsOpen ?? isLocalOpen;
   const setIsOpen = setControlledIsOpen ?? setIsLocalOpen;
 
+  // Use a ref for the form to reset it manually
+  const formRef = useRef<HTMLFormElement>(null);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -120,25 +123,27 @@ function CameraDialog({
         });
     }
   };
-
-  useEffect(() => {
-    if (isOpen) {
-        setPassword('');
-    }
-  }, [isOpen]);
   
   useEffect(() => {
-      if (defaultValues) {
-        // This is a way to set form values when dialog opens with defaults
+    if (!isOpen) {
+      // Reset form state when dialog closes
+      setPassword('');
+      if (formRef.current) {
+        formRef.current.reset();
       }
-  }, [defaultValues, isOpen])
+    }
+  }, [isOpen]);
+
+  // Keying the form with the camera ID (or a random key for new cameras)
+  // ensures React re-mounts the form with fresh defaultValues.
+  const formKey = (camera?.id ?? defaultValues?.ip ?? Date.now()).toString();
 
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>{children}</DialogTrigger>
         <DialogContent className="sm:max-w-2xl">
-            <form onSubmit={handleSubmit}>
+            <form key={formKey} ref={formRef} onSubmit={handleSubmit}>
                 <DialogHeader>
                     <DialogTitle>{camera ? 'Edit Camera' : 'Add Camera'}</DialogTitle>
                     <DialogDescription>
@@ -160,11 +165,11 @@ function CameraDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="rtspUrl">RTSP URL</Label>
-                        <Input id="rtspUrl" name="rtspUrl" defaultValue={defaultValues?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
+                        <Input id="rtspUrl" name="rtspUrl" defaultValue={defaultValues?.rtspUrl ?? camera?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="username">Camera Username</Label>
-                        <Input id="username" name="username" defaultValue={defaultValues?.username ?? ''} placeholder="admin" />
+                        <Input id="username" name="username" defaultValue={defaultValues?.username ?? camera?.username ?? ''} placeholder="admin" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="password">Camera Password</Label>
@@ -172,7 +177,7 @@ function CameraDialog({
                     </div>
                      <div className="grid gap-2">
                         <Label htmlFor="recordingMode">Recording Mode</Label>
-                        <Select name="recordingMode" defaultValue={camera?.recordingMode ?? 'motion'}>
+                        <Select name="recordingMode" defaultValue={defaultValues?.recordingMode ?? camera?.recordingMode ?? 'motion'}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a mode" />
                             </SelectTrigger>
@@ -190,7 +195,7 @@ function CameraDialog({
                         </Select>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <Switch id="enabled" name="enabled" defaultChecked={camera?.enabled ?? true} />
+                        <Switch id="enabled" name="enabled" defaultChecked={defaultValues?.enabled ?? camera?.enabled ?? true} />
                         <Label htmlFor="enabled">Camera Enabled</Label>
                     </div>
 
@@ -258,21 +263,18 @@ function DeleteCameraAlert({
 }
 
 // Helper function to format RTSP URL with credentials
-function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null): string | undefined | null {
+function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null, cam: any): string | undefined | null {
   if (!rtspUrl) {
     return rtspUrl;
   }
 
   try {
     const url = new URL(rtspUrl);
-    // Check if user and password already exist
-    // For this request, we'll always override with the provided credentials
-    url.username = 'admin';
-    url.password = 'smart999';
-
+    // Use the username and password provided in the scan result
+    url.username = cam.username || 'admin';
+    url.password = cam.password || 'smart999';
     return url.toString();
   } catch (error) {
-    // If URL parsing fails, log the error and return the original URL
     console.error('Error formatting RTSP URL with credentials:', error);
     return rtspUrl;
   }
@@ -283,7 +285,8 @@ function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null): strin
 // Preview Dialog Component
 function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
     const [isOpen, setIsOpen] = useState(false);
-    const cameraId = btoa(rtspUrl ?? ''); // Create a temporary ID for the stream URL from the rtsp url
+    // The RTSP URL can be long and contain special characters, so btoa is a good way to encode it for the URL path.
+    const cameraId = rtspUrl ? btoa(rtspUrl) : ''; 
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -358,11 +361,15 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
   };
 
   const handleSaveScannedCamera = (cam: any) => {
-    const rtspUri = cam.profiles?.[0]?.stream?.rtsp;
+    const streamProfile = cam.profiles?.[0] ?? cam.profiles;
+    const rtspUri = streamProfile?.stream?.rtsp;
+    const formattedRtspUrl = formatRtspUrlWithCredentials(rtspUri, cam);
+
     setCameraDefaults({
-        name: `${cam.information.Manufacturer} ${cam.information.Model}`,
+        name: cam.information?.Manufacturer ? `${cam.information.Manufacturer} ${cam.information.Model}` : 'Scanned Camera',
         ip: cam.ip,
-        rtspUrl: rtspUri || '',
+        rtspUrl: formattedRtspUrl || '',
+        username: cam.username,
     });
     setAddCameraDialogOpen(true);
   }
@@ -420,38 +427,33 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {foundCameras.map((cam, index) => (
-                            <TableRow key={index}>
-                                <TableCell className="font-medium">
-                                    <div>{cam.information.Manufacturer}</div>
-                                    <div className="text-xs text-muted-foreground">
-                                        {cam.information.Model}
-                                        {cam.profiles?.length > 0 && (
-                                            <span className="ml-1">
-                                                ({cam.profiles.map((p: any) => p.name).join(', ')})
-                                            </span>
-                                        )}
-                                    </div>
-                                </TableCell>
-                                <TableCell>{cam.ip}</TableCell>
-                                <TableCell className="text-xs truncate max-w-xs">{cam.profiles?.stream?.rtsp || 'N/A'}</TableCell>
-                                <TableCell className="text-right flex gap-2 justify-end">
-                                    {/* Format RTSP URL with credentials for the PreviewDialog */}
-                                    <PreviewDialog rtspUrl={formatRtspUrlWithCredentials(cam.profiles?.stream?.rtsp)} />
-                                    {/* Format RTSP URL with credentials before saving */}
-                                    <Button size="sm" onClick={() => handleSaveScannedCamera({
-                                        ...cam,
-                                        profiles: {
-                                            ...cam.profiles,
-                                            stream: {
-                                                ...cam.profiles?.stream,
-                                                rtsp: formatRtspUrlWithCredentials(cam.profiles?.stream?.rtsp)
-                                            }
-                                        }
-                                    })}>Save</Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                        {foundCameras.map((cam, index) => {
+                            const streamProfile = cam.profiles?.[0] ?? cam.profiles;
+                            const rtspUri = streamProfile?.stream?.rtsp;
+                            const previewRtspUrl = formatRtspUrlWithCredentials(rtspUri, cam);
+
+                            return (
+                                <TableRow key={cam.ip || index}>
+                                    <TableCell className="font-medium">
+                                        <div>{cam.information?.Manufacturer}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {cam.information?.Model}
+                                            {(streamProfile?.name) && (
+                                                <span className="ml-1">
+                                                    ({streamProfile.name})
+                                                </span>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{cam.ip}</TableCell>
+                                    <TableCell className="text-xs truncate max-w-xs">{rtspUri || 'N/A'}</TableCell>
+                                    <TableCell className="text-right flex gap-2 justify-end">
+                                        <PreviewDialog rtspUrl={previewRtspUrl} />
+                                        <Button size="sm" onClick={() => handleSaveScannedCamera(cam)}>Save</Button>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
                         </TableBody>
                     </Table>
                 )}
@@ -477,10 +479,15 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [recorderStatus, setRecorderStatus] = useState<Record<string, boolean>>({});
+  const [isMounted, setIsMounted] = useState(false);
 
   const fetchCameras = async () => {
-    const dbCameras = await getCameras();
-    setCameras(dbCameras);
+    try {
+        const dbCameras = await getCameras();
+        setCameras(dbCameras);
+    } catch (e) {
+        console.error("Failed to fetch cameras", e);
+    }
   };
   
   const fetchRecorderStatus = async () => {
@@ -494,12 +501,13 @@ export default function CamerasPage() {
   }
 
   useEffect(() => {
+    setIsMounted(true);
     fetchCameras();
     fetchRecorderStatus();
     const interval = setInterval(() => {
-        fetchCameras();
+        // No need to fetch cameras here, status is enough
         fetchRecorderStatus();
-    }, 5000); // Refresh camera status every 5 seconds
+    }, 5000); // Refresh recorder status every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -527,9 +535,12 @@ export default function CamerasPage() {
   }
   
   const isActivelyRecording = (camera: Camera) => {
-      return camera.status === 'recording' || recorderStatus[camera.id];
+      return recorderStatus[camera.id];
   }
-
+  
+  if (!isMounted) {
+      return null;
+  }
 
   return (
     <Card>
@@ -575,8 +586,8 @@ export default function CamerasPage() {
             {cameras.map((camera) => (
               <TableRow key={camera.id}>
                 <TableCell>
-                  <Badge variant={getStatusVariant(camera.status)} className={cn(camera.status === 'online' && "bg-green-500 text-green-50")}>
-                    {camera.status}
+                  <Badge variant={getStatusVariant(camera.status)} className={cn(camera.status === 'online' && "bg-green-500 text-green-50", isActivelyRecording(camera) && "bg-destructive")}>
+                    {isActivelyRecording(camera) ? 'recording' : camera.status}
                   </Badge>
                 </TableCell>
                  <TableCell>
