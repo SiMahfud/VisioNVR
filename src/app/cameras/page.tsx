@@ -18,9 +18,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye, Dot } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye, Dot, CircleDot } from 'lucide-react';
 import { type Camera } from '@/lib/db';
-import { getCameras, addCamera, updateCamera, deleteCamera, updateCameraStatus } from '@/lib/db';
+import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,11 +159,11 @@ function CameraDialog({
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="rtspUrl">RTSP URL</Label>
-                        <Input id="rtspUrl" name="rtspUrl" defaultValue={defaultValues?.rtspUrl ?? camera?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
+                        <Input id="rtspUrl" name="rtspUrl" defaultValue={defaultValues?.rtspUrl ?? ''} placeholder="rtsp://user:pass@192.168.1.200:554/stream1" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="username">Camera Username</Label>
-                        <Input id="username" name="username" defaultValue={defaultValues?.username ?? camera?.username ?? ''} placeholder="admin" />
+                        <Input id="username" name="username" defaultValue={defaultValues?.username ?? ''} placeholder="admin" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="password">Camera Password</Label>
@@ -359,7 +359,7 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
           <div className="grid gap-4 py-4">
             <div className="flex items-end gap-2">
               <div className="flex-grow grid gap-1.5">
-                  <Label htmlFor="ip-range">IP Range</Label>
+                  <Label htmlFor="ip-range">IP Range (optional)</Label>
                   <Input
                     id="ip-range"
                     name="ip-range"
@@ -434,15 +434,30 @@ function DiscoveryDialog({ children, onSave }: { children: React.ReactNode, onSa
 
 export default function CamerasPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
+  const [recorderStatus, setRecorderStatus] = useState<Record<string, boolean>>({});
 
   const fetchCameras = async () => {
     const dbCameras = await getCameras();
     setCameras(dbCameras);
   };
+  
+  const fetchRecorderStatus = async () => {
+      try {
+          const res = await fetch('/api/recorder/status');
+          const data = await res.json();
+          setRecorderStatus(data.status);
+      } catch (error) {
+          console.error("Failed to fetch recorder status", error);
+      }
+  }
 
   useEffect(() => {
     fetchCameras();
-    const interval = setInterval(fetchCameras, 5000); // Refresh camera status every 5 seconds
+    fetchRecorderStatus();
+    const interval = setInterval(() => {
+        fetchCameras();
+        fetchRecorderStatus();
+    }, 5000); // Refresh camera status every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -468,13 +483,9 @@ export default function CamerasPage() {
         default: return 'outline';
     }
   }
-
-  const getStatusClass = (status: Camera['status']) => {
-     switch (status) {
-        case 'online': return 'bg-green-500 text-green-50';
-        case 'recording': return 'bg-red-500 text-red-50 animate-pulse';
-        default: return '';
-    }
+  
+  const isActivelyRecording = (camera: Camera) => {
+      return camera.status === 'recording' || recorderStatus[camera.id];
   }
 
 
@@ -513,7 +524,8 @@ export default function CamerasPage() {
               <TableHead>Name</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>IP Address</TableHead>
-              <TableHead>Recording</TableHead>
+              <TableHead>Recording Mode</TableHead>
+              <TableHead>Recording Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -521,7 +533,7 @@ export default function CamerasPage() {
             {cameras.map((camera) => (
               <TableRow key={camera.id}>
                 <TableCell>
-                  <Badge variant={getStatusVariant(camera.status)} className={cn(getStatusClass(camera.status))}>
+                  <Badge variant={getStatusVariant(camera.status)} className={cn(camera.status === 'online' && "bg-green-500 text-green-50")}>
                     {camera.status}
                   </Badge>
                 </TableCell>
@@ -534,6 +546,18 @@ export default function CamerasPage() {
                 <TableCell>{camera.location}</TableCell>
                 <TableCell>{camera.ip}</TableCell>
                 <TableCell className="capitalize">{camera.recordingMode}</TableCell>
+                 <TableCell>
+                    {isActivelyRecording(camera) ? (
+                         <Badge variant="destructive" className="animate-pulse">
+                            <CircleDot className="mr-2 h-3 w-3" />
+                            Recording
+                        </Badge>
+                    ) : (
+                         <Badge variant="outline">
+                            Idle
+                        </Badge>
+                    )}
+                </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
