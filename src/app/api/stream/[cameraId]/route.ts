@@ -93,32 +93,40 @@ export async function GET(
     ffmpegProcess.on('close', (code) => {
         console.log(`[ffmpeg close] Process for ${cameraId} exited with code ${code}`);
         runningProcesses.delete(cameraId);
+        // Hapus direktori stream saat proses berhenti untuk membersihkan segmen
+        if (fs.existsSync(streamOutputDir)) {
+            fs.rmSync(streamOutputDir, { recursive: true, force: true });
+        }
     });
   }
 
   // Tunggu hingga file m3u8 dibuat oleh ffmpeg
-  const fileExists = await waitForFile(m3u8File);
+  const fileExists = await waitForFile(m3u8File, 15000); // Timeout lebih lama
   if (!fileExists) {
     console.error(`[ffmpeg] Timeout waiting for m3u8 file: ${m3u8File}`);
-    return new NextResponse('Stream could not be started in time.', { status: 500 });
+    // Berhenti mencoba memulai ulang jika gagal setelah timeout
+    const process = runningProcesses.get(cameraId);
+    if(process) {
+        process.kill();
+        runningProcesses.delete(cameraId);
+    }
+    return new NextResponse('Stream could not be started in time.', { status: 504 }); // 504 Gateway Timeout
   }
 
-  // Sajikan konten playlist m3u8
-  try {
-      const playlistContent = fs.readFileSync(m3u8File, 'utf-8');
-      const headers = new Headers();
-      headers.set('Content-Type', 'application/vnd.apple.mpegurl');
-      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      headers.set('Pragma', 'no-cache');
-      headers.set('Expires', '0');
+  // Alih-alih menyajikan file m3u8, kita akan mengarahkan klien ke sana.
+  // Namun, pendekatan yang lebih baik adalah klien sudah tahu URL-nya.
+  // Di sini kita hanya akan mengembalikan status OK untuk mengonfirmasi stream sudah siap.
+  // Klien sekarang bertanggung jawab untuk meminta /hls/{cameraId}/stream.m3u8
+  
+  const playlistContent = fs.readFileSync(m3u8File, 'utf-8');
+  const headers = new Headers();
+  headers.set('Content-Type', 'application/vnd.apple.mpegurl');
+  headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+  headers.set('Expires', '0');
 
-      return new NextResponse(playlistContent, {
-        status: 200,
-        headers: headers,
-      });
-  } catch (error) {
-       console.error(`[ffmpeg] Could not read playlist file ${m3u8File}:`, error);
-       // Jika file tidak ada setelah menunggu, kembalikan 404
-       return new NextResponse('Could not read stream playlist.', { status: 404 });
-  }
+  return new NextResponse(playlistContent, {
+    status: 200,
+    headers: headers,
+  });
 }
