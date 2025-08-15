@@ -68,7 +68,7 @@ export async function GET(
         '-flags', 'low_delay',
         '-i', rtspUrl,
         '-an', // No audio
-        // '-c:v', 'copy', // DIHAPUS: Biarkan ffmpeg melakukan transkode
+        '-c:v', 'copy', // DIKEMBALIKAN: Sesuai referensi, lebih efisien.
         '-f', 'hls',
         '-hls_time', '2', // Durasi segmen HLS (detik)
         '-hls_list_size', '3', // Jumlah segmen dalam playlist
