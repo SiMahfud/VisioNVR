@@ -107,11 +107,11 @@ function parseIpRange(ipRange: string): string[] {
 
 
 // Main scanning function
-async function scanForDevices(ipAddresses: string[]): Promise<any[]> { // Accepts array of IPs
-    const foundCameras: any[] = [];
+async function scanForDevices(ipAddresses: string[]): Promise<any[]> {
     const ONVIF_PORT = 80; // ONVIF default port
 
-    for (const ip of ipAddresses) {
+    // Create an array of promises, each representing the initialization of a device
+    const devicePromises = ipAddresses.map(async (ip) => {
         try {
             console.log(`Attempting to connect to ONVIF device at ${ip}:${ONVIF_PORT}`);
             const device = new OnvifDevice({
@@ -124,18 +124,25 @@ async function scanForDevices(ipAddresses: string[]): Promise<any[]> { // Accept
             await device.init();
             console.log(`Successfully initialized device at ${ip}`);
 
-            // Get device information and profiles if initialization is successful
-            foundCameras.push({
+            // Return device information if initialization is successful
+            return {
                 ip: device.address,
                 information: device.getInformation(),
                 profiles: device.getCurrentProfile(),
-            });
+            };
 
         } catch (initError) {
-            // Ignore devices that fail to initialize
+            // Ignore devices that fail to initialize and return null or undefined
             console.error(`Failed to initialize device at ${ip}:${ONVIF_PORT}:`, initError);
+            return null; // Return null for failed initializations
         }
-    }
+    });
+
+    // Wait for all promises to settle
+    const results = await Promise.all(devicePromises);
+
+    // Filter out the null results (failed initializations)
+    const foundCameras = results.filter(deviceInfo => deviceInfo !== null);
 
     console.log(`Scan complete. Found ${foundCameras.length} cameras.`);
     return foundCameras;
