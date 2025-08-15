@@ -5,7 +5,7 @@ import { startAllRecorders, startStreamForCamera, stopStreamForCamera } from './
 import { exec } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
-
+import type { ChildProcess } from 'child_process';
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();

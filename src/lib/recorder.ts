@@ -88,7 +88,7 @@ export async function startStreamForCamera(cameraId: string): Promise<boolean> {
         '-',                        // Output to stdout
     ];
 
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] })  as unknown as ChildProcessWithoutNullStreams;;
     webSocketStreams.set(cameraId, ffmpegProcess);
 
     ffmpegProcess.stderr.on('data', (data) => {
@@ -108,7 +108,7 @@ export async function startStreamForCamera(cameraId: string): Promise<boolean> {
     return true;
 }
 
-export function stopStreamForCamera(cameraId: string) {
+export async function stopStreamForCamera(cameraId: string) {
     const process = webSocketStreams.get(cameraId);
     if (process) {
         console.log(`[WebSocket Stream] Killing FFmpeg process for ${cameraId}.`);
