@@ -1,19 +1,19 @@
 
 import next from 'next';
 import http from 'http';
-import { startAllRecorders, startStreamForCamera, stopStreamForCamera } from './lib/recorder';
+import { startAllRecorders, stopStreamForCamera, webSocketStreams } from './lib/recorder';
 import { exec } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
-import type { ChildProcess } from 'child_process';
+
+// Declare global type for the setup function
+declare global {
+  var setupStreamBroadcast: ((cameraId: string, ffmpegProcess: ChildProcessWithoutNullStreams) => void) | undefined;
+}
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev: true });
 const handle = app.getRequestHandler();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 9002;
-
-// In-memory map to manage active FFmpeg streams for WebSocket
-// Key: cameraId, Value: FFmpeg process
-export const webSocketStreams = new Map<string, ChildProcessWithoutNullStreams>();
 
 // Initialize the database first.
 function initDb() {
@@ -120,21 +120,31 @@ async function main() {
         }
     });
 
-    // Function to broadcast FFmpeg data to relevant clients
-    setInterval(() => {
-        for (const [cameraId, ffmpegProcess] of webSocketStreams.entries()) {
+    // Function to setup FFmpeg data broadcasting for a camera
+    function setupStreamBroadcast(cameraId: string, ffmpegProcess: ChildProcessWithoutNullStreams) {
+        ffmpegProcess.stdout.on('data', (chunk) => {
             const clients = streamClients.get(cameraId);
             if (clients && clients.size > 0) {
-                ffmpegProcess.stdout.on('data', (chunk) => {
-                    for (const client of clients) {
-                        if (client.readyState === WebSocket.OPEN) {
-                            client.send(chunk);
-                        }
+                for (const client of clients) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(chunk);
                     }
-                });
+                }
             }
-        }
-    }, 1000);
+        });
+
+        ffmpegProcess.stderr.on('data', (data) => {
+            console.error(`[FFmpeg ${cameraId}] stderr: ${data}`);
+        });
+
+        ffmpegProcess.on('close', (code) => {
+            console.log(`[FFmpeg ${cameraId}] Process closed with code ${code}`);
+            webSocketStreams.delete(cameraId);
+        });
+    }
+
+    // Export the setup function for use in recorder.ts
+    global.setupStreamBroadcast = setupStreamBroadcast;
 
     // 6. Start the Server
     server.listen(port, () => {

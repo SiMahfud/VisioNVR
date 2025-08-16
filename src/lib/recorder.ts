@@ -1,11 +1,12 @@
 
-'use server';
-
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { getCameras, type Camera, updateCameraStatus, getAppSetting, getCamera } from './db';
-import { webSocketStreams } from '../dev-server'; // Import the shared map
+
+// In-memory map to manage active FFmpeg streams for WebSocket
+// Key: cameraId, Value: FFmpeg process
+export const webSocketStreams = new Map<string, ChildProcessWithoutNullStreams>();
 
 // --- Constants ---
 const RECORDINGS_BASE_DIR = path.join(process.cwd(), 'records');
@@ -69,6 +70,8 @@ export async function startStreamForCamera(cameraId: string): Promise<boolean> {
     }
 
     const camera = await getCamera(cameraId);
+    // const cameras = await getCameras();
+    // console.log(cameras)
     if (!camera || !camera.rtspUrl) {
         console.error(`[WebSocket Stream] Camera ${cameraId} not found or has no RTSP URL.`);
         return false;
@@ -88,22 +91,28 @@ export async function startStreamForCamera(cameraId: string): Promise<boolean> {
         '-',                        // Output to stdout
     ];
 
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] })  as unknown as ChildProcessWithoutNullStreams;;
+    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] }) as unknown as ChildProcessWithoutNullStreams;
     webSocketStreams.set(cameraId, ffmpegProcess);
 
-    ffmpegProcess.stderr.on('data', (data) => {
-        // console.error(`[FFmpeg STDERR ${cameraId}]: ${data.toString()}`);
-    });
+    // Setup WebSocket broadcasting if the function is available
+    if (global.setupStreamBroadcast) {
+        global.setupStreamBroadcast(cameraId, ffmpegProcess);
+    } else {
+        // Fallback error handling if setupStreamBroadcast is not available
+        ffmpegProcess.stderr.on('data', (data) => {
+            // console.error(`[FFmpeg ${cameraId}] stderr: ${data}`);
+        });
 
-    ffmpegProcess.on('close', (code) => {
-        console.log(`[WebSocket Stream] FFmpeg for ${cameraId} exited with code ${code}.`);
-        webSocketStreams.delete(cameraId);
-    });
-    
-    ffmpegProcess.on('error', (err) => {
-      console.error(`[WebSocket Stream] Failed to start FFmpeg for ${cameraId}:`, err);
-      webSocketStreams.delete(cameraId);
-    });
+        ffmpegProcess.on('close', (code) => {
+            console.log(`[FFmpeg ${cameraId}] Process closed with code ${code}`);
+            webSocketStreams.delete(cameraId);
+        });
+
+        ffmpegProcess.on('error', (err) => {
+            console.error(`[WebSocket Stream] Failed to start FFmpeg for ${cameraId}:`, err);
+            webSocketStreams.delete(cameraId);
+        });
+    }
 
     return true;
 }

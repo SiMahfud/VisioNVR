@@ -65,6 +65,7 @@ export async function getCameras(): Promise<Camera[]> {
 }
 
 export async function getCamera(id: string): Promise<Camera | null> {
+    console.log('mencoba mengambil kamera dengan id:', id);
     const db = await getDb();
     const camera = await db.get('SELECT * FROM cameras WHERE id = ?', id);
     if (!camera) return null;

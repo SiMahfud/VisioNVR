@@ -32,8 +32,8 @@ function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camer
     <Card className="overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 bg-card/50">
         <div className="grid gap-1.5">
-          <CardTitle className="text-base font-medium font-headline">{camera.name}</CardTitle>
-          <CardDescription className="text-xs">{camera.location}</CardDescription>
+          <CardTitle className="text-base font-medium font-headline">{camera.location}</CardTitle>
+          <CardDescription className="text-xs">{camera.name}</CardDescription>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onMaximize(camera)}>
           <Maximize className="h-4 w-4" />
@@ -42,7 +42,7 @@ function CameraCard({ camera, onMaximize }: { camera: Camera, onMaximize: (camer
       <CardContent className="p-0 aspect-video relative bg-black">
         {canPlayStream ? (
           <>
-            <VideoPlayer src={streamId} />
+            <VideoPlayer src={camera.id} />
             <Badge variant="destructive" className="absolute top-2 left-2 animate-pulse z-10 pointer-events-none">
               LIVE
             </Badge>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 >
                 <CardContent className="p-0 aspect-video relative bg-black">
                    {camera.enabled && camera.rtspUrl ? (
-                      <VideoPlayer src={Buffer.from(camera.rtspUrl, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_')} />
+                      <VideoPlayer src={camera.id} />
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
                         <VideoOff className="h-8 w-8 text-muted-foreground" />
@@ -239,7 +239,7 @@ export default function DashboardPage() {
           </DialogHeader>
           <div className="h-full w-full bg-black flex items-center justify-center">
              {fullscreenCamera && fullscreenCamera.enabled && fullscreenCamera.rtspUrl ? (
-                <VideoPlayer src={Buffer.from(fullscreenCamera.rtspUrl, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_')} />
+                <VideoPlayer src={fullscreenCamera.id} />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center bg-muted">
                   <VideoOff className="h-24 w-24 text-muted-foreground" />
