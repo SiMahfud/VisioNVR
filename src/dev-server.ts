@@ -9,6 +9,7 @@ import type { ChildProcessWithoutNullStreams } from 'child_process';
 // Declare global type for the setup function
 declare global {
   var setupStreamBroadcast: ((cameraId: string, ffmpegProcess: ChildProcessWithoutNullStreams) => void) | undefined;
+  var setupPreviewBroadcast: ((previewId: string, ffmpegProcess: ChildProcessWithoutNullStreams) => void) | undefined;
 }
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev: true });
@@ -143,8 +144,35 @@ async function main() {
         });
     }
 
-    // Export the setup function for use in recorder.ts
+    // Function to setup FFmpeg data broadcasting for preview streams
+    function setupPreviewBroadcast(previewId: string, ffmpegProcess: ChildProcessWithoutNullStreams) {
+        ffmpegProcess.stdout.on('data', (chunk) => {
+            const clients = streamClients.get(previewId);
+            if (clients && clients.size > 0) {
+                for (const client of clients) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(chunk);
+                    }
+                }
+            }
+        });
+
+        ffmpegProcess.stderr.on('data', (data) => {
+            console.error(`[FFmpeg Preview ${previewId}] stderr: ${data}`);
+        });
+
+        ffmpegProcess.on('close', (code) => {
+            console.log(`[FFmpeg Preview ${previewId}] Process closed with code ${code}`);
+            // Import and clean up preview streams
+            import('./app/api/stream/preview/route').then(({ previewStreams }) => {
+                previewStreams.delete(previewId);
+            }).catch(console.error);
+        });
+    }
+
+    // Export the setup functions for use in API routes
     global.setupStreamBroadcast = setupStreamBroadcast;
+    global.setupPreviewBroadcast = setupPreviewBroadcast;
 
     // 6. Start the Server
     server.listen(port, () => {

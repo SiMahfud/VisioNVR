@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Wifi, Loader2, Trash2, Video, KeyRound, Radio, Power, Eye, Dot, CircleDot } from 'lucide-react';
 import { type Camera } from '@/lib/db';
 import { getCameras, addCamera, updateCamera, deleteCamera } from '@/lib/db';
-import { getRecorderStatus } from '@/lib/recorder';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -288,9 +287,6 @@ function formatRtspUrlWithCredentials(rtspUrl: string | undefined | null, cam: a
 // Preview Dialog Component
 function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
     const [isOpen, setIsOpen] = useState(false);
-    
-    // Encode the RTSP URL to be URL-safe for the API route
-    const cameraId = rtspUrl ? Buffer.from(rtspUrl, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_') : '';
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -307,7 +303,7 @@ function PreviewDialog({ rtspUrl }: { rtspUrl: string | null | undefined }) {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="aspect-video bg-black rounded-md">
-                   {isOpen && rtspUrl && <VideoPlayer src={cameraId} />}
+                   {isOpen && rtspUrl && <VideoPlayer rtspUrl={rtspUrl} />}
                 </div>
             </DialogContent>
         </Dialog>
@@ -496,7 +492,11 @@ export default function CamerasPage() {
   
   const fetchRecorderStatus = async () => {
       try {
-          const status = await getRecorderStatus();
+          const response = await fetch('/api/recorder/status');
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const status = await response.json();
           setRecorderStatus(status);
       } catch (error) {
           console.error("Failed to fetch recorder status", error);
